@@ -1,0 +1,6 @@
+diagrams
+history
+target/
+src/main.rs
+tests/*.rs
+*~
