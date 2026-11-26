@@ -45,7 +45,7 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 
 # ---- not implemented: each snippet the tests inline ----
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
-    draw-doc draw-hud; do
+    draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -78,6 +78,8 @@ mutant bug "a plain left drag pans" src/canvas-update.sh \
     's/(is_key_down(KeyCode::Space) \&\& is_mouse_button_down(MouseButton::Left))/is_mouse_button_down(MouseButton::Left)/'
 mutant bug "a new drag jumps from the last mouse position" src/canvas-update.sh \
     's/if \${v}pan_held \&\& \${!canvas}\.panning {/if ${v}pan_held {/'
+mutant bug "fit ignores the tree panel" src/canvas-fit.sh \
+    's/vec2(\${!left} + (screen_width() - \${!left}) \* 0\.5,/vec2(screen_width() * 0.5,/'
 mutant bug "fit doesn't center the page" src/canvas-fit.sh \
     's/\.offset = vec2(PAGE_W, PAGE_H) \* 0\.5/.offset = Vec2::ZERO * 0.5/'
 
@@ -130,6 +132,44 @@ mutant bug "the page border scales with zoom" src/draw-page.sh \
     's/2\.0 \/ \${!canvas}\.zoom/2.0/'
 mutant bug "the HUD's mouse point ignores the zoom" src/draw-hud.sh \
     's/Vec2::from(mouse_position()) \/ \${!canvas}\.zoom/Vec2::from(mouse_position())/'
+
+# ---- the workspace and the folder tree ----
+mutant bug "an .svg file opens nothing" src/workspace-args.sh \
+    '/\${!open} = Some(path);/d'
+mutant bug "any file is accepted" src/workspace-args.sh \
+    's/} else if path\.is_file() \&\& is_svg {/} else if path.is_file() {/'
+mutant bug "files sort before folders" src/tree-scan.sh \
+    's/key\.push((is_file, name\.to_lowercase(), name\.clone()));/key.push((!is_file, name.to_lowercase(), name.clone()));/'
+mutant bug "the sort minds case" src/tree-scan.sh \
+    's/key\.push((is_file, name\.to_lowercase(), name\.clone()));/key.push((is_file, name.clone(), name.clone()));/'
+mutant bug "hidden entries are listed" src/tree-scan.sh \
+    "s/let hidden = item\.file_name()\.to_string_lossy()\.starts_with('\.');/let hidden = false;/"
+mutant bug "symlinked folders are followed" src/tree-scan.sh \
+    's/Ok(kind) => (kind\.is_dir(), kind\.is_symlink()),/Ok(kind) => (item.path().is_dir(), kind.is_symlink()),/'
+mutant bug "a folded folder's rows still take clicks" src/tree-click.sh \
+    's/if !hidden \&\& entry\.is_dir \&\& \${!collapsed}\.contains(\&entry\.path) {/if false {/'
+mutant bug "a folder click reports the folder" src/tree-click.sh \
+    's/} else if entry\.is_dir {/} else if false {/'
+mutant bug "scrolling isn't clamped" src/tree-click.sh \
+    '/\${!scroll} = \${!scroll}\.clamp(/d'
+mutant bug "clicks ignore the scroll" src/tree-click.sh \
+    's/(\${v}mouse\.y + \${!scroll} - TREE_PAD)/(${v}mouse.y - TREE_PAD)/'
+mutant bug "the wheel scrolls the tree from the canvas" src/tree-click.sh \
+    's/if \${v}over \&\& \${v}wheel_y != 0\.0 {/if ${v}wheel_y != 0.0 {/'
+mutant bug "a folded folder's rows are drawn" src/tree-draw.sh \
+    's/if !hidden \&\& folded {/if false {/'
+mutant bug "the open page isn't highlighted" src/tree-draw.sh \
+    's/if \${!selected} == Some(entry\.path\.as_path()) {/if false {/'
+mutant bug "a changed page has no star" src/tree-draw.sh \
+    's/} else if page\.is_some_and(|page| page\.dirty) {/} else if false {/'
+mutant bug "a failed page isn't red" src/tree-draw.sh \
+    's/let color = if page\.is_some_and(|page| page\.error\.is_some()) {/let color = if false {/'
+mutant bug "long names run off the panel" src/tree-draw.sh \
+    's/while !label\.is_empty()/while false \&\& !label.is_empty()/'
+mutant bug "rows are drawn ignoring the scroll" src/tree-draw.sh \
+    's/\* TREE_ROW_H - \${!scroll};/* TREE_ROW_H;/'
+mutant bug "the error isn't said" src/page-error.sh \
+    '/draw_text(\${!error},/d'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {

@@ -61,6 +61,7 @@ Crates: `macroquad`, `quick-xml` and `rstar`, plus a clipboard crate if macroqua
 Record here any conflict between a later step and an earlier branch-only feature, along with how it was resolved.
 
 - Steps 0–2 (pre-parity): the canvas goes beyond the browser with an infinite canvas, adaptive grid and R-tree. Hit-testing at step 3 should query the R-tree, then apply the JS ordering (`sortedSvgNodes`: text first, swimlanes and classes last).
+- Step 54 (gram-www@10fa0f8, the book mockup) comes before step 3, out of date order. The folder tree and per-page state are what every later step builds on: selection, the editor process, undo and the save path all live on a `Page`, so building them first saves retrofitting steps 3–53 onto a one-file app. The mockup doesn't depend on any earlier step: its dropdowns become the tree, and its `*` (unsaved changes) becomes `Page.dirty`, which nothing sets until step 3 edits a node. Its PHP login, title and font changes are web-only.
 - Steps 0–2: CI comes before its paired step (15), as an agreed exception to pairing, because the pre-parity commit already has tests. `.github/workflows/rust.yml` mirrors everkeep's: it checks out gram and orc side by side (`../orc`), then runs `./test.sh` and `tests/mutate.sh`.
 - Steps 0–2: three samples (`diagrams/act (15).svg`, `act(1).svg`, `act(2).svg`) are truncated: each stops right after the first `stroke="` or `fill="` whose value was a hex color. The old "save to file" button (`js/xml-buttons.js`, step 16) built `'data:image/svg+xml,' + encodeURI(xml)`, and `encodeURI` leaves `#` alone, so the browser took the first `#` as the start of a URL fragment and saved only what came before it. The rest is lost. gram reports the parse error and doesn't open them, as a browser would. At step 16, gram writes the file directly, so the bug doesn't carry over; note it in that step's commit body.
 
@@ -73,7 +74,7 @@ Record here any conflict between a later step and an earlier branch-only feature
 | [x] | 0 | — | scaffold | Cargo, macroquad, quick-xml, `build.sh`/`test.sh`/`orc-env.sh`/`mutate.sh`, empty window, `gram <path>` argument, `.gitignore` | — |
 | [x] | 1 | 2022-06-18 | devbox@8ea4b82 | `svgdecode` TODO stub (decode embedded SVG). Note it, no code (noted in the steps 0–2 commit) | — |
 | [x] | 2 | — | unpaired | render: `gram <file.svg>` parses the SVG into the model and draws the supported elements (line, polyline, rect with rx/ry, circle, text; fill, stroke, dasharray, font-size, text-decoration) as macroquad shapes. The browser did this for free, so no historical commit matches it. Beyond the browser: an infinite canvas (pan, cursor-anchored zoom, fit), a multi-level adaptive grid and an R-tree (`rstar`) for culling | — |
-| [ ] | 3 | 2022-09-03 | devbox@c702432 | select by click (selection colors); node edit via the external editor; read-only full SVG pane | — |
+| [ ] | 3 | 2022-09-03 | devbox@c702432 | select by click (selection colors); node edit via the external editor; read-only full SVG pane. Selection, the editor process and the pane belong to the `Page`; an edit sets `Page.dirty`. Decide here: the old `getscal` returned -999 for a missing attribute, so a rect without `stroke-width` had a click box 999 larger all round; gram's boxes read a missing number as 0 | — |
 | [ ] | 4 | 2022-09-04 | devbox@8c8c666 | follow-ups | — |
 | [ ] | 5 | 2022-09-05 | devbox@ed1a227 | | 0, 1, 2 |
 | [ ] | 6 | 2022-09-07 | devbox@8faf51d | | 3–7 |
@@ -124,7 +125,7 @@ Record here any conflict between a later step and an earlier branch-only feature
 | [ ] | 51 ⑂ | 2025-01-26..02-09 | 10538c3, f80f0f0 | v0.4: game-flow rect; resize of action nodes | — |
 | [ ] | 52 | 2025-02-14 | featured@0fe02e4 | featured tests reorganized as data-driven | — |
 | [ ] | 53 ⑂ | 2025-02-15..16 | b42e917, e81c929 | v0.4: palettes and theme switching | — |
-| [ ] | 54 | 2026-01-08 | gram-www@10fa0f8 | book mockup. In gram this is the folder tree from `gram <dir>` | — |
+| [x] | 54 | 2026-01-08 | gram-www@10fa0f8 | book mockup. In gram this is the folder tree from `gram <dir>` (or `gram <file.svg>`, opening its folder), per-page state (`Page`, `Workspace`), load errors shown on the page, and the `*` for unsaved changes. Done before step 3 (see the decisions log). Its `+` (add page) and clone buttons had no behavior yet, so they come when a later step gives them one | — |
 | [ ] | 55 | 2026-01-24 | gram-www@50d3c88 | Ctrl-S save and save indicator (atomic write) | — |
 | [ ] | 56 | 2026-02-15 | gram-www@6480380 | refresh cache on save, narrower vertex, more accurate text selection. Revisit the text widths here | 1 |
 | [ ] | 57 | 2026-02-21 | gram-www@70fc11b | fix line drawing in class diagrams | — |
