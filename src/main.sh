@@ -74,6 +74,10 @@ export ${v}err_Title=name
 export ${v}err_Error=error
 export ${v}hud_Canvas=page.canvas
 export ${v}hud_Title=title
+export ${v}hud_Hints=hints
+export ${v}hints_Doc=page.doc
+export ${v}hints_Selection=page.selection
+export ${v}hints_Hints=hints
 
 export ${v}tree_Entries=ws.entries
 export ${v}tree_Collapsed=ws.collapsed
@@ -480,6 +484,7 @@ cat << EOF
                     ws.mode
                 );
 
+                ` ./hud-hints.sh ${v}hints_ `
                 ` ./draw-hud.sh ${v}hud_ `
             } else {
                 set_default_camera();

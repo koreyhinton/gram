@@ -47,7 +47,7 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
-    node-apply map banner mode-notice; do
+    node-apply map banner mode-notice hud-hints; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -244,6 +244,12 @@ mutant bug "the mode notice never goes away" src/mode-notice.sh \
     's/    if \${!since} < MODE_NOTICE_SECS {/    if true {/'
 mutant bug "every mode says Select Mode" src/mode-notice.sh \
     's/        let text = if \${!mode} == 0 {/        let text = if true {/'
+
+# ---- the status line's hints ----
+mutant bug "the hints name the first selected, not the one being edited" src/hud-hints.sh \
+    's/        \.last()$/        .first()/'
+mutant bug "the HUD leaves out the hints" src/draw-hud.sh \
+    '/    draw_text(\${!hints}, /d'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {

@@ -7,8 +7,12 @@
 # The interface these tests fix:
 #   draw-page.sh  binds Canvas. A PAGE_BG page at world (0, 0), PAGE_W x
 #       PAGE_H, with a border 2 screen pixels thick.
-#   draw-hud.sh   binds Canvas and Title. One line of text: the title, the
-#       zoom in percent and the world point under the mouse.
+#   draw-hud.sh   binds Canvas, Title and Hints. The hints, then a line with
+#       the title, the zoom in percent and the world point under the mouse.
+#   hud-hints.sh  binds Doc, Selection and Hints. With a selection, that
+#       Enter edits the last selected node (by tag), a second click
+#       deselects, and Esc deselects all; without one, how to select, zoom,
+#       pan and fit.
 #   banner.sh     binds Text. The text on a BANNER_BG box sized to it, across
 #       the top of the canvas, right of the tree.
 #   mode-notice.sh  binds Mode and Since. "0 => Select Mode" or "N => Coming
@@ -23,6 +27,10 @@ v=mn_
 export ${v}page_Canvas=canvas
 export ${v}hud_Canvas=canvas
 export ${v}hud_Title=title
+export ${v}hud_Hints=hints
+export ${v}hints_Doc=doc
+export ${v}hints_Selection=selection
+export ${v}hints_Hints=hints
 export ${v}banner_Text=message
 export ${v}notice_Mode=mode
 export ${v}notice_Since=since
@@ -109,13 +117,15 @@ fn the_page_is_a_white_sheet_at_the_origin() {
 fn the_hud_shows_the_file_the_zoom_and_the_world_point() {
     let canvas = Canvas { offset: vec2(-50.0, 10.0), zoom: 2.5, panning: false, last_mouse: Vec2::ZERO };
     let title = "act.svg";
+    let hints = "F: fit";
 
     ` ./draw-hud.sh ${v}hud_ `
 
     // the mouse at (200, 100) is world (-50 + 80, 10 + 40)
     match &drawn()[..] {
-        [Drawn::Text { text }] => {
-            assert!(text.starts_with("act.svg  |  250%  |  (30, 50)"), "{}", text);
+        [Drawn::Text { text: hints }, Drawn::Text { text }] => {
+            assert_eq!(hints, "F: fit");
+            assert_eq!(text, "act.svg  |  250%  |  (30, 50)");
         }
         other => panic!("{:?}", other),
     }
@@ -161,5 +171,31 @@ fn a_mode_change_says_so_for_a_few_seconds() {
     let since = MODE_NOTICE_SECS;
     ` ./mode-notice.sh ${v}notice_ `
     assert_eq!(drawn(), vec![]);
+}
+
+#[test]
+fn the_hints_say_how_to_edit_once_something_is_selected() {
+    let doc = Doc {
+        root_attrs: vec![],
+        nodes: ["circle", "rect"]
+            .iter()
+            .map(|tag| Node {
+                tag: tag.to_string(),
+                attrs: vec![],
+                text: String::new(),
+                bounds: Rect::default(),
+                parent: None,
+            })
+            .collect(),
+    };
+
+    let selection = Selection::default();
+    ` ./hud-hints.sh ${v}hints_ `
+    assert!(hints.starts_with("click: select"), "{}", hints);
+
+    // Enter edits the last one selected: the rect
+    let selection = Selection { ids: vec![0, 1] };
+    ` ./hud-hints.sh ${v}hints_ `
+    assert_eq!(hints, "Enter: edit the <rect>, click again: deselect, Esc: deselect all");
 }
 EOF
