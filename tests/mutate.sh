@@ -47,7 +47,7 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
-    node-apply map banner mode-notice hud-hints key-presses; do
+    node-apply map banner mode-notice hud-hints key-presses select-group transform-note; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -209,7 +209,7 @@ mutant bug "a new selection isn't the one being edited" src/select.sh \
 mutant bug "the selection colors are swapped" src/draw-doc.sh \
     's/let shown = Some(if last { EDIT_COLOR } else { SEL_COLOR });/let shown = Some(if last { SEL_COLOR } else { EDIT_COLOR });/'
 mutant bug "a node with no stroke is recolored" src/draw-doc.sh \
-    's/let mut color_attr: Option<\&str> = None;/let mut color_attr: Option<\&str> = Some("stroke");/'
+    's/let mut inherited_color_attr: Option<\&str> = None;/let mut inherited_color_attr: Option<\&str> = Some("stroke");/'
 mutant bug "node XML loses attribute order" src/node-xml.sh \
     's/for (name, value) in \${!node}\.attrs\.iter() {/for (name, value) in ${!node}.attrs.iter().rev() {/'
 mutant bug "an edit removes the attributes it leaves out" src/node-apply.sh \
@@ -258,6 +258,30 @@ mutant bug "holding a key repeats its press" src/key-presses.sh \
     's/if !repeat || after_lost_release {/if true {/'
 mutant bug "a lost key stays lost" src/key-presses.sh \
     '/^                \${!lost}\.retain(|held| \*held != key);$/d'
+
+# ---- <g> groups ----
+mutant bug "a right-click doesn't go up from the selected group" src/select-group.sh \
+    's/let mut \${v}from: Option<usize> = if \${v}inside_group {/let mut ${v}from: Option<usize> = if false {/'
+mutant bug "empty space doesn't count as inside the group" src/select-group.sh \
+    's/\${v}inside_group = \${v}inside_group || \${!hit}\.is_none();/let _ = 0;/'
+mutant bug "a group's nested shapes are left out" src/select-group.sh \
+    's/                inside = inside || at == group;/                inside = inside || (at == group \&\& node.parent == Some(group));/'
+mutant bug "the clicked node isn't the one edited" src/select-group.sh \
+    's/if inside \&\& SHAPE_TAGS\.contains(\&node\.tag\.as_str()) \&\& Some(id) != \${v}base {/if inside \&\& SHAPE_TAGS.contains(\&node.tag.as_str()) {/'
+mutant bug "a group selection takes non-shapes" src/select-group.sh \
+    's/if inside \&\& SHAPE_TAGS\.contains(\&node\.tag\.as_str()) \&\& Some(id) != \${v}base {/if inside \&\& Some(id) != ${v}base {/'
+mutant bug "the group isn't remembered" src/select-group.sh \
+    's/\${!selection}\.group = Some(group);/let _ = group;/'
+mutant bug "a left click keeps the group" src/select.sh \
+    's/\${!selection}\.group = None;/let _ = 0;/'
+mutant bug "groups pass down no styles" src/draw-doc.sh \
+    's/if INHERITED_ATTRS\.contains(\&name\.as_str()) {/if false {/'
+mutant bug "a group's styles beat the node's own" src/draw-doc.sh \
+    's/        for (name, value) in node\.attrs\.iter() {$/        for (name, value) in node.attrs.iter().filter(|_| false) {/'
+mutant bug "a group's stroke beats a text's own fill for the selection color" src/draw-doc.sh \
+    's/\&\& let Some(attr) = own_color_attr\.or(inherited_color_attr)/\&\& let Some(attr) = inherited_color_attr.or(own_color_attr)/'
+mutant bug "transforms go unnoticed" src/transform-note.sh \
+    's/let \${!note}: Option<String> = if \${v}transformed > 0 {/let ${!note}: Option<String> = if false {/'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {

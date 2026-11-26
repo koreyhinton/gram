@@ -9,7 +9,8 @@
 # An unselected node joins the end of the selection, so it becomes the node
 # being edited and the one before it goes back to the selected color. A
 # selected node leaves the selection. A click on empty space changes
-# nothing.
+# nothing. A click on a node ends a group selection (select-group.sh): the
+# selection is back to nodes picked one by one.
 
 v=$1
 # maps
@@ -28,6 +29,9 @@ cat << EOF
         && !${v}was_selected
     {
         ${!selection}.ids.push(id);
+    }
+    if ${!hit}.is_some() {
+        ${!selection}.group = None;
     }
 
 EOF

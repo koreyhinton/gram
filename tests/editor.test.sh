@@ -123,7 +123,7 @@ fn an_editor_edits_the_file_and_is_seen_to_exit() {
 
 #[test]
 fn an_editor_that_fails_says_so() {
-    let path = file_with("fail", "node.svg", "<rect/>");
+    let path = file_with("fail", "node.xml", "<rect/>");
     let editor = "gram-test-no-such-editor";
 
     ` ./editor-open.sh ${v}open_ `

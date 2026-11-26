@@ -17,7 +17,9 @@
 # Supports line, polyline, rect (rx/ry), circle and text: fill and stroke
 # (svg defaults: fill black, stroke none), stroke-width, stroke-dasharray,
 # font-size (px, smaller, larger; or in style) and text-decoration
-# (underline, line-through). Other elements are skipped.
+# (underline, line-through). An element inside a <g> takes those styles
+# (INHERITED_ATTRS) from it unless it sets its own. transform isn't
+# supported. Other elements are skipped.
 
 v=$1
 # maps
@@ -56,14 +58,40 @@ cat << EOF
         let (mut cx, mut cy, mut r) = (0.0f32, 0.0f32, 0.0f32);
         let (mut x1, mut y1, mut x2, mut y2) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
         let mut points: Vec<f32> = vec![];
-        // the attribute that shows selection: stroke, or a text's fill
-        // (whichever of the two comes first)
-        let mut color_attr: Option<&str> = None;
+        // the attribute that shows selection: stroke, or a text's fill,
+        // whichever of the two comes first among the node's own attributes
+        // (as setcolor did); only a node with neither uses one from its <g>
+        let mut own_color_attr: Option<&str> = None;
+        let mut inherited_color_attr: Option<&str> = None;
+        // the styles the enclosing <g>s pass down (outermost first), then
+        // the node's own, which win
+        let mut ancestors: Vec<usize> = vec![];
+        let mut up = node.parent;
+        while let Some(at) = up {
+            ancestors.push(at);
+            up = ${!doc}.nodes[at].parent;
+        }
+        let mut styled: Vec<(&String, &String)> = vec![];
+        for at in ancestors.iter().rev() {
+            for (name, value) in ${!doc}.nodes[*at].attrs.iter() {
+                if INHERITED_ATTRS.contains(&name.as_str()) {
+                    styled.push((name, value));
+                }
+            }
+        }
+        let inherited_count = styled.len();
         for (name, value) in node.attrs.iter() {
+            styled.push((name, value));
+        }
+        for (place, (name, value)) in styled.iter().copied().enumerate() {
             let num = value.trim().trim_end_matches("px").parse::<f32>().ok();
             let colors_it = name == "stroke" || (name == "fill" && node.tag == "text");
-            if colors_it && color_attr.is_none() {
-                color_attr = Some(name.as_str());
+            let own = place >= inherited_count;
+            if colors_it && own && own_color_attr.is_none() {
+                own_color_attr = Some(name.as_str());
+            }
+            if colors_it && !own && inherited_color_attr.is_none() {
+                inherited_color_attr = Some(name.as_str());
             }
             match name.as_str() {
                 "fill" | "stroke" => {
@@ -146,7 +174,7 @@ cat << EOF
         // EDIT_COLOR, the others in SEL_COLOR, on the stroke it has
         let picked = ${!selection}.ids.iter().position(|id| *id == ${v}id);
         if let Some(place) = picked
-            && let Some(attr) = color_attr
+            && let Some(attr) = own_color_attr.or(inherited_color_attr)
         {
             let last = place + 1 == ${!selection}.ids.len();
             let shown = Some(if last { EDIT_COLOR } else { SEL_COLOR });

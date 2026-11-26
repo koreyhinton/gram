@@ -77,6 +77,10 @@ const EDIT_COLOR: Color = Color::new(202.0 / 255.0, 255.0 / 255.0, 181.0 / 255.0
 // has no click box and stays out of the R-tree
 const SHAPE_TAGS: [&str; 5] = ["line", "polyline", "rect", "circle", "text"];
 
+// the attributes a <g> passes down to the elements inside it, unless they
+// set their own (svg's inherited presentation attributes that gram draws)
+const INHERITED_ATTRS: [&str; 6] = ["fill", "stroke", "stroke-width", "stroke-dasharray", "font-size", "text-decoration"];
+
 // a number as the old web app read it (JS parseFloat): the longest number at
 // the start, after any whitespace, so "10px" is 10 and "1.5e1" is 15. A value
 // with no number at the start is 0 (JS gave NaN, or -999 for a missing
@@ -164,10 +168,13 @@ struct Node {
 }
 
 // the selected nodes, by index in Doc.nodes, in the order they were picked.
-// The last one is the node being edited (shown in EDIT_COLOR).
+// The last one is the node being edited (shown in EDIT_COLOR). group is the
+// <g> whose shapes a right-click selected (select-group.sh); None when nodes
+// were picked one by one.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Selection {
     ids: Vec<usize>,
+    group: Option<usize>,
 }
 
 // what an open editor is editing

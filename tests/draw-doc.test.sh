@@ -169,7 +169,7 @@ fn selected_nodes_are_drawn_in_the_selection_colors() {
     // stroke, so (as setcolor did) it isn't recolored and draws nothing.
     let svg_text = r#"<svg><line x1="0" y1="0" x2="10" y2="0" stroke="black"/><line x1="0" y1="5" x2="10" y2="5" stroke="black"/><line x1="0" y1="9" x2="10" y2="9" stroke="red"/><line x1="0" y1="12" x2="10" y2="12"/></svg>"#;
     let canvas = canvas_at(1.0);
-    let selection = Selection { ids: vec![0, 3, 2] };
+    let selection = Selection { ids: vec![0, 3, 2], group: None };
 
     ` ./svg-load.sh ${v}load_ `
     ` ./mouse-rects.sh ${v}rects_ `
@@ -194,7 +194,7 @@ fn a_selected_text_is_drawn_in_the_selection_color() {
     // a text's color is its fill (step 4's getcolor/setcolor)
     let svg_text = r#"<svg><text x="10" y="20" fill="black">Receive</text><text x="10" y="40" fill="black">Request</text></svg>"#;
     let canvas = canvas_at(1.0);
-    let selection = Selection { ids: vec![1, 0] };
+    let selection = Selection { ids: vec![1, 0], group: None };
 
     ` ./svg-load.sh ${v}load_ `
     ` ./mouse-rects.sh ${v}rects_ `
@@ -213,6 +213,74 @@ fn a_selected_text_is_drawn_in_the_selection_color() {
         colors,
         vec![("Receive".to_string(), EDIT_COLOR), ("Request".to_string(), SEL_COLOR)]
     );
+}
+
+#[test]
+fn shapes_in_a_group_take_its_styles_unless_they_set_their_own() {
+    // the outer <g> sets the width; the inner one the color; the second
+    // line sets its own color
+    let svg_text = r#"<svg><g stroke-width="3"><g stroke="red"><line x1="0" y1="0" x2="10" y2="0"/><line x1="0" y1="5" x2="10" y2="5" stroke="blue"/></g></g></svg>"#;
+    let canvas = canvas_at(1.0);
+
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}draw_ `
+
+    assert_eq!(
+        drawn(),
+        vec![
+            Drawn::Line { from: vec2(0.0, 0.0), to: vec2(10.0, 0.0), thickness: 3.0, color: Color::from_rgba(255, 0, 0, 255) },
+            Drawn::Line { from: vec2(0.0, 5.0), to: vec2(10.0, 5.0), thickness: 3.0, color: Color::from_rgba(0, 0, 255, 255) },
+        ]
+    );
+}
+
+#[test]
+fn a_selected_shape_whose_stroke_comes_from_its_group_is_recolored() {
+    let svg_text = r#"<svg><g stroke="red"><line x1="0" y1="0" x2="10" y2="0"/></g></svg>"#;
+    let canvas = canvas_at(1.0);
+    let selection = Selection { ids: vec![1], group: Some(0) };
+
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}dsel_ `
+
+    let colors: Vec<Color> = drawn()
+        .iter()
+        .filter_map(|drawn| match drawn {
+            Drawn::Line { color, .. } => Some(*color),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(colors, vec![EDIT_COLOR]);
+}
+
+#[test]
+fn a_selected_text_in_a_stroked_group_shows_on_its_own_fill() {
+    // the label in docs/groups.svg: its <g> passes down stroke="red", but
+    // the text's own fill comes first, as setcolor saw only the node's own
+    let svg_text = r#"<svg><g stroke="red"><text x="10" y="20" fill="black" stroke="none">grouped</text></g></svg>"#;
+    let canvas = canvas_at(1.0);
+    let selection = Selection { ids: vec![1], group: None };
+
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}dsel_ `
+
+    let colors: Vec<Color> = drawn()
+        .iter()
+        .filter_map(|drawn| match drawn {
+            Drawn::Text { color, .. } => Some(*color),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(colors, vec![EDIT_COLOR]);
 }
 
 #[test]
