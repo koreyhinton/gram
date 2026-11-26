@@ -18,6 +18,10 @@ const TEXT_SIZE: f32 = 16.0;
 const TEXT_LOD_PX: f32 = 4.0;
 // the biggest glyph size rasterized; zooming further scales the glyphs
 const TEXT_MAX_PX: f32 = 512.0;
+// glyph sizes rasterized per doubling: text is rasterized at the next of
+// these sizes up from its size on screen, as macroquad caches every glyph at
+// every size it's drawn at and never frees them
+const TEXT_PX_STEPS: f32 = 4.0;
 
 // the infinite canvas
 const ZOOM_MIN: f32 = 0.05;

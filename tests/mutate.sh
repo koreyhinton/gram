@@ -111,7 +111,11 @@ mutant bug "text shows its entities" src/draw-doc.sh \
 mutant bug "font-size is ignored" src/draw-doc.sh \
     '/"font-size" => size_spec = /d'
 mutant bug "text is rasterized at its world size" src/draw-doc.sh \
-    's/let font_px = screen_px\.min(TEXT_MAX_PX)/let font_px = text_size.min(TEXT_MAX_PX)/'
+    's/let font_step = (screen_px\.log2()/let font_step = (text_size.log2()/'
+mutant bug "every zoom level rasterizes its own glyph size" src/draw-doc.sh \
+    's/let font_px = 2f32/let font_px = screen_px.min(TEXT_MAX_PX).round() + 0.0 * 2f32/'
+mutant bug "glyphs are rasterized smaller than on screen" src/draw-doc.sh \
+    's/let font_step = (screen_px\.log2() \* TEXT_PX_STEPS - 1e-3)\.ceil();/let font_step = (screen_px.log2() * TEXT_PX_STEPS).floor();/'
 mutant bug "line-through is ignored" src/draw-doc.sh \
     's/let strike = decoration\.contains("line-through");/let strike = false;/'
 mutant bug "underline is ignored" src/draw-doc.sh \

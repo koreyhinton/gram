@@ -379,6 +379,45 @@ fn text_is_rasterized_at_its_screen_size() {
 }
 
 #[test]
+fn zooming_rasterizes_text_at_a_few_fixed_sizes() {
+    // every 1% of zoom from 30% to 2500%: the glyphs are never rasterized
+    // smaller than on screen (unless capped), never more than a step bigger,
+    // and only at TEXT_PX_STEPS sizes per doubling
+    let svg_text = r#"<svg><text x="10" y="20">zoomed</text></svg>"#;
+    let mut sizes: Vec<u16> = vec![];
+    let mut zoom = 0.3f32;
+    while zoom <= 25.0 {
+        let canvas = canvas_at(zoom);
+
+        ` ./svg-load.sh ${v}load_ `
+        assert_eq!(error, None);
+        ` ./spatial-index.sh ${v}index_ `
+        ` ./draw-doc.sh ${v}draw_ `
+
+        let screen_px = 16.0 * zoom;
+        match &drawn()[0] {
+            Drawn::Text { size, px, .. } => {
+                let px = *px as f32;
+                assert!((size - 16.0).abs() < 1e-3, "size {} at zoom {}", size, zoom);
+                if screen_px <= TEXT_MAX_PX {
+                    assert!(px + 0.5 >= screen_px, "{}px for {}px on screen", px, screen_px);
+                    assert!(px <= screen_px * 1.2 + 1.0, "{}px for {}px on screen", px, screen_px);
+                } else {
+                    assert_eq!(px, TEXT_MAX_PX);
+                }
+                sizes.push(px as u16);
+            }
+            other => panic!("{:?}", other),
+        }
+        zoom *= 1.01;
+    }
+    sizes.sort_unstable();
+    sizes.dedup();
+    // 4.8px to 512px is under 7 doublings
+    assert!(sizes.len() <= 7 * TEXT_PX_STEPS as usize + 1, "{} sizes: {:?}", sizes.len(), sizes);
+}
+
+#[test]
 fn font_size_comes_from_the_attribute_or_the_style() {
     let svg_text = r#"<svg><text x="10" y="20" font-size="smaller">a</text><text x="10" y="40" style="font-size:10px;">b</text><text x="10" y="60" font-size="24">c</text></svg>"#;
     let canvas = canvas_at(1.0);

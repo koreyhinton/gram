@@ -377,9 +377,16 @@ cat << EOF
                         Color::new(color.r, color.g, color.b, color.a * 0.35),
                     );
                 } else {
-                    // glyphs rasterized at their size on screen, so they stay
-                    // crisp at any zoom, then scaled back to world units
-                    let font_px = screen_px.min(TEXT_MAX_PX).round().max(1.0);
+                    // glyphs rasterized at their size on screen, rounded up to
+                    // the next of a few fixed sizes (TEXT_PX_STEPS), so they
+                    // stay crisp at any zoom without caching a new size each
+                    // frame of a zoom, then scaled back to world units
+                    let font_step = (screen_px.log2() * TEXT_PX_STEPS - 1e-3).ceil();
+                    let font_px = 2f32
+                        .powf(font_step / TEXT_PX_STEPS)
+                        .round()
+                        .min(TEXT_MAX_PX)
+                        .max(1.0);
                     let font_scale = text_size / font_px;
                     draw_text_ex(
                         &display,
