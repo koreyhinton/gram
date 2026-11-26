@@ -20,6 +20,7 @@ gram opens a folder of `.svg` diagrams as a tree, draws them natively, and hands
 ./build.sh                             # generates src/main.rs from src/*.sh
 cargo run -- docs                      # a folder: its .svg files as a tree
 cargo run -- docs/concave-fill.svg     # a file: its folder, with the file open
+cargo run -- docs/groups.svg           # nested <g> groups to try right-click on
 ```
 
 Run `./build.sh` again after changing any `src/*.sh`. `src/main.rs` is generated: never edit it.
