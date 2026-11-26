@@ -59,7 +59,7 @@ mutant bug "text boxes aren't truncated like parseInt" src/svg-load.sh \
 mutant bug "a rect box ignores its stroke" src/svg-load.sh \
     's/min_x = x - stroke_w;/min_x = x;/'
 mutant bug "numbers with units are read as 0" src/svg-load.sh \
-    's/let num = \${v}parse_float(value);/let num = value.trim().parse::<f32>().unwrap_or(0.0);/'
+    's/nums\.push(text\[\.\.number_end\]\.parse::<f32>()\.unwrap_or(0\.0));/nums.push(text.trim().parse::<f32>().unwrap_or(0.0));/'
 mutant bug "an exponent is ignored" src/svg-load.sh \
     's/number_end = exp_end;/exp_end += 0;/'
 mutant bug "the root's attributes are lost" src/svg-load.sh \

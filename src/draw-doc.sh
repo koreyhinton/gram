@@ -225,34 +225,37 @@ cat << EOF
                 let mut left: Vec<usize> = (0..poly.len()).collect();
                 while left.len() >= 3 && twice_area.abs() > 1e-4 {
                     let count = left.len();
+                    // the first corner to cut: (its place in left, whether
+                    // it has area to draw)
                     let mut cut: Option<(usize, bool)> = None;
-                    for i in 0..count {
+                    let mut i = 0usize;
+                    while cut.is_none() && i < count {
                         let a = poly[left[(i + count - 1) % count]];
                         let b = poly[left[i]];
                         let c = poly[left[(i + 1) % count]];
                         let corner = (b - a).perp_dot(c - b) * turn;
-                        if corner.abs() <= 1e-4 {
-                            // a straight run (or a spike back on itself): drop
-                            // the point, there's no area to draw
+                        // a straight run (or a spike back on itself): drop the
+                        // point, there's no area to draw
+                        let straight = corner.abs() <= 1e-4;
+                        if straight {
                             cut = Some((i, false));
-                            break;
                         }
-                        if corner < 0.0 {
-                            continue;
+                        // a corner that turns the polygon's way
+                        if !straight && corner > 0.0 {
+                            let holds_point = left.iter().any(|&other| {
+                                let p = poly[other];
+                                p.distance(a) > 1e-4
+                                    && p.distance(b) > 1e-4
+                                    && p.distance(c) > 1e-4
+                                    && (b - a).perp_dot(p - a) * turn >= 0.0
+                                    && (c - b).perp_dot(p - b) * turn >= 0.0
+                                    && (a - c).perp_dot(p - c) * turn >= 0.0
+                            });
+                            if !holds_point {
+                                cut = Some((i, true));
+                            }
                         }
-                        let holds_point = left.iter().any(|&other| {
-                            let p = poly[other];
-                            p.distance(a) > 1e-4
-                                && p.distance(b) > 1e-4
-                                && p.distance(c) > 1e-4
-                                && (b - a).perp_dot(p - a) * turn >= 0.0
-                                && (c - b).perp_dot(p - b) * turn >= 0.0
-                                && (a - c).perp_dot(p - c) * turn >= 0.0
-                        });
-                        if !holds_point {
-                            cut = Some((i, true));
-                            break;
-                        }
+                        i += 1;
                     }
                     match cut {
                         Some((i, draw)) => {
