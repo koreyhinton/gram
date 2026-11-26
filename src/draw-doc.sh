@@ -17,7 +17,9 @@
 # Supports line, polyline, rect (rx/ry), circle and text: fill and stroke
 # (svg defaults: fill black, stroke none), stroke-width, stroke-dasharray,
 # font-size (px, smaller, larger; or in style) and text-decoration
-# (underline, line-through). Other elements are skipped.
+# (underline, line-through). An element inside a <g> takes those styles
+# (INHERITED_ATTRS) from it unless it sets its own. transform isn't
+# supported. Other elements are skipped.
 
 v=$1
 # maps
@@ -59,7 +61,26 @@ cat << EOF
         // the attribute that shows selection: stroke, or a text's fill
         // (whichever of the two comes first)
         let mut color_attr: Option<&str> = None;
+        // the styles the enclosing <g>s pass down (outermost first), then
+        // the node's own, which win
+        let mut ancestors: Vec<usize> = vec![];
+        let mut up = node.parent;
+        while let Some(at) = up {
+            ancestors.push(at);
+            up = ${!doc}.nodes[at].parent;
+        }
+        let mut styled: Vec<(&String, &String)> = vec![];
+        for at in ancestors.iter().rev() {
+            for (name, value) in ${!doc}.nodes[*at].attrs.iter() {
+                if INHERITED_ATTRS.contains(&name.as_str()) {
+                    styled.push((name, value));
+                }
+            }
+        }
         for (name, value) in node.attrs.iter() {
+            styled.push((name, value));
+        }
+        for (name, value) in styled.iter().copied() {
             let num = value.trim().trim_end_matches("px").parse::<f32>().ok();
             let colors_it = name == "stroke" || (name == "fill" && node.tag == "text");
             if colors_it && color_attr.is_none() {

@@ -59,6 +59,11 @@ export ${v}hit_Pos=world
 export ${v}hit_Hit=hit
 export ${v}sel_Selection=page.selection
 export ${v}sel_Hit=hit
+export ${v}group_Doc=page.doc
+export ${v}group_Hit=hit
+export ${v}group_Selection=page.selection
+export ${v}note_Doc=ws.pages[i].doc
+export ${v}note_Note=note
 
 export ${v}fit_Canvas=page.canvas
 export ${v}fit_Left=TREE_W
@@ -443,6 +448,8 @@ cat << EOF
                 && mouse.x >= TREE_W
                 && !is_key_down(KeyCode::Space)
                 && !editing;
+            // a right click on the canvas selects a group
+            let canvas_right_click = is_mouse_button_pressed(MouseButton::Right) && mouse.x >= TREE_W && !editing;
 
             clear_background(CANVAS_BG);
 
@@ -473,6 +480,12 @@ cat << EOF
 
                     ` ./hit-test.sh ${v}hit_ `
                     ` ./select.sh ${v}sel_ `
+                }
+                if canvas_right_click && page.error.is_none() {
+                    let world = page.canvas.offset + mouse / page.canvas.zoom;
+
+                    ` ./hit-test.sh ${v}hit_ `
+                    ` ./select-group.sh ${v}group_ `
                 }
 
                 // world space: the camera shows the canvas's view, y down like svg
@@ -545,6 +558,14 @@ cat << EOF
                         format!("watching {} for saves  -  Esc: stop", file_name(job.page))
                     }
                 };
+            }
+            // a page with transforms, which gram doesn't draw
+            if message.is_empty()
+                && let Some(i) = ws.open
+            {
+                ` ./transform-note.sh ${v}note_ `
+
+                message = note.unwrap_or_default();
             }
             if let Some((i, at)) = file_warning
                 && get_time() - at < 5.0

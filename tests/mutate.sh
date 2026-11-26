@@ -47,7 +47,7 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
-    node-apply map banner mode-notice hud-hints key-presses; do
+    node-apply map banner mode-notice hud-hints key-presses select-group transform-note; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -258,6 +258,28 @@ mutant bug "holding a key repeats its press" src/key-presses.sh \
     's/if !repeat || after_lost_release {/if true {/'
 mutant bug "a lost key stays lost" src/key-presses.sh \
     '/^                \${!lost}\.retain(|held| \*held != key);$/d'
+
+# ---- <g> groups ----
+mutant bug "a right-click doesn't go up from the selected group" src/select-group.sh \
+    's/let mut \${v}from: Option<usize> = if \${v}inside_group {/let mut ${v}from: Option<usize> = if false {/'
+mutant bug "empty space doesn't count as inside the group" src/select-group.sh \
+    's/\${v}inside_group = \${v}inside_group || \${!hit}\.is_none();/let _ = 0;/'
+mutant bug "a group's nested shapes are left out" src/select-group.sh \
+    's/                inside = inside || at == group;/                inside = inside || (at == group \&\& node.parent == Some(group));/'
+mutant bug "the clicked node isn't the one edited" src/select-group.sh \
+    's/if inside \&\& SHAPE_TAGS\.contains(\&node\.tag\.as_str()) \&\& Some(id) != \${v}base {/if inside \&\& SHAPE_TAGS.contains(\&node.tag.as_str()) {/'
+mutant bug "a group selection takes non-shapes" src/select-group.sh \
+    's/if inside \&\& SHAPE_TAGS\.contains(\&node\.tag\.as_str()) \&\& Some(id) != \${v}base {/if inside \&\& Some(id) != ${v}base {/'
+mutant bug "the group isn't remembered" src/select-group.sh \
+    's/\${!selection}\.group = Some(group);/let _ = group;/'
+mutant bug "a left click keeps the group" src/select.sh \
+    's/\${!selection}\.group = None;/let _ = 0;/'
+mutant bug "groups pass down no styles" src/draw-doc.sh \
+    's/if INHERITED_ATTRS\.contains(\&name\.as_str()) {/if false {/'
+mutant bug "a group's styles beat the node's own" src/draw-doc.sh \
+    's/        for (name, value) in node\.attrs\.iter() {$/        for (name, value) in node.attrs.iter().filter(|_| false) {/'
+mutant bug "transforms go unnoticed" src/transform-note.sh \
+    's/let \${!note}: Option<String> = if \${v}transformed > 0 {/let ${!note}: Option<String> = if false {/'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {

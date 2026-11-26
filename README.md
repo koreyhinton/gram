@@ -47,6 +47,7 @@ Without `M-x server-start`, emacsclient fails at once with "can't find socket", 
 | click a folder in the tree | fold or unfold it |
 | **edit** button (the open file's row) | open the page's own file in the editor; gram reloads it on each save |
 | click a node | select it, or deselect it if it's selected; the last one selected (green) is the one Enter edits |
+| right-click a node | select every shape in its `<g>` group; right-click again for the group around that one. Enter then edits the clicked node and moves the rest of the group with it |
 | **Enter** | edit the green node in the editor; the change carries over to the other selected nodes |
 | **Esc** | deselect all, or drop a refused edit |
 | **R** | reopen a refused edit in the editor |
