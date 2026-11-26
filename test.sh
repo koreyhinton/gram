@@ -7,7 +7,7 @@ cd "$(dirname "$0")" || exit 1
 
 ./build.sh || exit 1
 
-. ./orc-env.sh
+. ./orc-env.sh || exit 1
 
 set -o pipefail
 

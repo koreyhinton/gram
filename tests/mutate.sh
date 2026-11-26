@@ -28,7 +28,7 @@ fi
 
 RN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${RN_DIR}" || exit 1
-. ./orc-env.sh
+. ./orc-env.sh || exit 1
 
 RN_CRATE="${RN_DIR}/target/mutants/crate"
 RN_LOGS="$(mktemp -d)"

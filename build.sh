@@ -2,7 +2,7 @@
 
 cd "$(dirname "$0")" || exit 1
 
-. ./orc-env.sh
+. ./orc-env.sh || exit 1
 # A missing snippet fails inside main.sh's backticks without stopping the build.
 
 set -o pipefail

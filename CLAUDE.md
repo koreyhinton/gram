@@ -15,6 +15,7 @@ cargo run -- ~/diagram_root
 - `build.sh` keeps the last good `main.rs` if rustfmt fails.
 - `main.sh` prints `#![allow(non_snake_case)]` because orc names like `mn_join_Post` aren't snake case.
 - `./test.sh` generates `tests/*.test.sh` into `tests/*.rs` (gitignored) and runs `cargo test`. Run `. ./orc-env.sh` before generating one test file by hand.
+- `orc-env.sh` pins orc's core version (`0.1.0`), and CI checks out the matching tag (`ref: core/v0.1.0`). A different `../orc` stops the build. Bump both together to move to a newer orc.
 - `tests/mutate.sh` checks that the tests fail when a snippet is missing or broken.
 - `src/models.sh` prints the app's constants and types (Node, Doc, Selection, ...). `main.sh` and the tests both print it, so snippets compile against the same definitions everywhere.
 
