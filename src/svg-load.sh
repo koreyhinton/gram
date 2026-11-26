@@ -100,6 +100,45 @@ cat << EOF
         ${!error} = Some("no <svg> root element".to_string());
     }
 
+    // a number as the old web app read it (JS parseFloat): the longest
+    // number at the start, after any whitespace, so "10px" is 10 and
+    // "1.5e1" is 15. A value with no number at the start counts as 0.
+    let ${v}parse_float = |text: &str| -> f32 {
+        let text = text.trim_start();
+        let bytes = text.as_bytes();
+        let mut end = 0usize;
+        let mut number_end = 0usize;
+        let mut has_digits = false;
+        if end < bytes.len() && (bytes[end] == b'+' || bytes[end] == b'-') {
+            end += 1;
+        }
+        while end < bytes.len() && bytes[end].is_ascii_digit() {
+            end += 1;
+            has_digits = true;
+            number_end = end;
+        }
+        if end < bytes.len() && bytes[end] == b'.' {
+            end += 1;
+            while end < bytes.len() && bytes[end].is_ascii_digit() {
+                end += 1;
+                has_digits = true;
+                number_end = end;
+            }
+        }
+        // an exponent only counts with digits after it ("1e" is 1)
+        if has_digits && end < bytes.len() && (bytes[end] == b'e' || bytes[end] == b'E') {
+            let mut exp_end = end + 1;
+            if exp_end < bytes.len() && (bytes[exp_end] == b'+' || bytes[exp_end] == b'-') {
+                exp_end += 1;
+            }
+            while exp_end < bytes.len() && bytes[exp_end].is_ascii_digit() {
+                exp_end += 1;
+                number_end = exp_end;
+            }
+        }
+        text[..number_end].parse::<f32>().unwrap_or(0.0)
+    };
+
     // each node's click box, by the old web app's rules (setMouseRects and
     // StartEndFrame.FromText). A missing or unreadable number counts as 0.
     for ${v}node in ${!doc}.nodes.iter_mut() {
@@ -108,7 +147,7 @@ cat << EOF
         let (mut x1, mut y1, mut x2, mut y2) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
         let mut points: Vec<f32> = vec![];
         for (name, value) in ${v}node.attrs.iter() {
-            let num = value.trim().parse::<f32>().unwrap_or(0.0);
+            let num = ${v}parse_float(value);
             match name.as_str() {
                 "x" => x = num,
                 "y" => y = num,
@@ -126,7 +165,7 @@ cat << EOF
                     points = value
                         .split(|c: char| c == ',' || c.is_whitespace())
                         .filter(|part| !part.is_empty())
-                        .map(|part| part.parse::<f32>().unwrap_or(0.0))
+                        .map(|part| ${v}parse_float(part))
                         .collect();
                 }
                 _ => {}

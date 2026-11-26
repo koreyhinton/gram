@@ -141,6 +141,23 @@ fn text_coordinates_are_truncated_like_parse_int() {
 }
 
 #[test]
+fn numbers_are_read_like_parse_float() {
+    // units and trailing text are ignored, as JS parseFloat did, so these
+    // boxes match the plain-number ones
+    let svg_text = r#"<svg><rect x="10px" y=" 20" width="100.5px" height="5e1" stroke-width="1px"/><text x="333.9px" y="134px">a</text><polyline points="1px,2 30px 40"/><rect x="abc" y="-" width="1e" height="+2"/></svg>"#;
+
+    ` ./svg-load.sh ${v}load_ `
+
+    assert_eq!(error, None);
+    assert_eq!(doc.nodes[0].bounds, Rect::new(9.0, 19.0, 102.5, 52.0));
+    // text: 333.9 truncated to 333, as the old parseInt did
+    assert_eq!(doc.nodes[1].bounds, Rect::new(330.0, 117.0, 11.0, 21.0));
+    assert_eq!(doc.nodes[2].bounds, Rect::new(1.0, 2.0, 29.0, 38.0));
+    // no number at the start is 0; "1e" is 1; "+2" is 2
+    assert_eq!(doc.nodes[3].bounds, Rect::new(0.0, 0.0, 1.0, 2.0));
+}
+
+#[test]
 fn invalid_xml_is_an_error() {
     let svg_text = r#"<svg><rect x="1" y="2"></line></svg>"#;
 

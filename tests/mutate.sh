@@ -58,6 +58,10 @@ mutant bug "text boxes aren't truncated like parseInt" src/svg-load.sh \
     's/min_x = x\.trunc() - 3\.0;/min_x = x - 3.0;/'
 mutant bug "a rect box ignores its stroke" src/svg-load.sh \
     's/min_x = x - stroke_w;/min_x = x;/'
+mutant bug "numbers with units are read as 0" src/svg-load.sh \
+    's/let num = \${v}parse_float(value);/let num = value.trim().parse::<f32>().unwrap_or(0.0);/'
+mutant bug "an exponent is ignored" src/svg-load.sh \
+    's/number_end = exp_end;/exp_end += 0;/'
 mutant bug "the root's attributes are lost" src/svg-load.sh \
     '/\.root_attrs = attrs;/d'
 mutant bug "the index skips the first node" src/spatial-index.sh \
