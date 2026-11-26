@@ -45,25 +45,33 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 
 # ---- not implemented: each snippet the tests inline ----
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
-    draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error; do
+    draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
+    editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
+    node-apply map banner mode-notice hud-hints key-presses; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
 # ---- loading ----
 mutant bug "entities are dropped from text" src/svg-load.sh \
     "/\.text\.push('&');/d"
-mutant bug "text boxes ignore the character widths" src/svg-load.sh \
+mutant bug "text boxes ignore the character widths" src/mouse-rects.sh \
     "s/'?' | 'A'..='B' | 'M'..='O' | 'R' | 'T' | 'V' => 11.0,/'?' | 'A'..='B' | 'M'..='O' | 'R' | 'T' | 'V' => 8.0,/"
-mutant bug "text boxes aren't truncated like parseInt" src/svg-load.sh \
+mutant bug "text boxes aren't truncated like parseInt" src/mouse-rects.sh \
     's/min_x = x\.trunc() - 3\.0;/min_x = x - 3.0;/'
-mutant bug "a rect box ignores its stroke" src/svg-load.sh \
+mutant bug "a rect box ignores its stroke" src/mouse-rects.sh \
     's/min_x = x - stroke_w;/min_x = x;/'
-mutant bug "numbers with units are read as 0" src/svg-load.sh \
-    's/nums\.push(text\[\.\.number_end\]\.parse::<f32>()\.unwrap_or(0\.0));/nums.push(text.trim().parse::<f32>().unwrap_or(0.0));/'
-mutant bug "an exponent is ignored" src/svg-load.sh \
+mutant bug "numbers with units are read as 0" src/models.sh \
+    's/    text\[\.\.number_end\]\.parse::<f64>()\.unwrap_or(0\.0)/    text.trim().parse::<f64>().unwrap_or(0.0)/'
+mutant bug "an exponent is ignored" src/models.sh \
     's/number_end = exp_end;/exp_end += 0;/'
 mutant bug "the root's attributes are lost" src/svg-load.sh \
     '/\.root_attrs = attrs;/d'
+mutant bug "a node's parent is lost" src/svg-load.sh \
+    's/parent: \${v}open\.last()\.copied()\.flatten(),/parent: None,/'
+mutant bug "an end tag doesn't close its element" src/svg-load.sh \
+    '/\${v}open\.pop();/d'
+mutant bug "elements with no shape are clickable" src/spatial-index.sh \
+    's/if SHAPE_TAGS\.contains(\&\${v}node\.tag\.as_str()) {/if true {/'
 mutant bug "the index skips the first node" src/spatial-index.sh \
     's/\.nodes\.iter()\.enumerate()/.nodes.iter().enumerate().skip(1)/'
 
@@ -159,7 +167,9 @@ mutant bug "the wheel scrolls the tree from the canvas" src/tree-click.sh \
 mutant bug "a folded folder's rows are drawn" src/tree-draw.sh \
     's/if !hidden \&\& folded {/if false {/'
 mutant bug "the open page isn't highlighted" src/tree-draw.sh \
-    's/if \${!selected} == Some(entry\.path\.as_path()) {/if false {/'
+    's/let is_selected = \${!selected} == Some(entry\.path\.as_path());/let is_selected = false;/'
+mutant bug "the edit button opens the file instead" src/tree-click.sh \
+    's/        } else if on_button {/        } else if false {/'
 mutant bug "a changed page has no star" src/tree-draw.sh \
     's/} else if page\.is_some_and(|page| page\.dirty) {/} else if false {/'
 mutant bug "a failed page isn't red" src/tree-draw.sh \
@@ -170,6 +180,84 @@ mutant bug "rows are drawn ignoring the scroll" src/tree-draw.sh \
     's/\* TREE_ROW_H - \${!scroll};/* TREE_ROW_H;/'
 mutant bug "the error isn't said" src/page-error.sh \
     '/draw_text(\${!error},/d'
+
+# ---- the external editor ----
+mutant bug "the editor fallback order is wrong" src/editor-pick.sh \
+    's/\["GRAM_EDITOR", "VISUAL", "EDITOR"\]/["GRAM_EDITOR", "EDITOR", "VISUAL"]/'
+mutant bug "a blank editor variable is used" src/editor-pick.sh \
+    '/\.find(|value| !value\.trim()\.is_empty())/s/!value\.trim()\.is_empty()/true/'
+mutant bug "a path with spaces splits" src/editor-open.sh \
+    's/format!("{} \\"\\$1\\"", /format!("{} \\$1", /'
+mutant bug "a failed editor isn't reported" src/editor-poll.sh \
+    's/if !status\.success() {/if false {/'
+mutant bug "the editor stays after it exits" src/editor-poll.sh \
+    '/^    if \${!exited} {$/,/^    }$/d'
+mutant bug "the reload misses a length-only change" src/file-watch.sh \
+    's/\.map(|time| (time, meta\.len()))/.map(|time| (time, 0))/'
+mutant bug "the watch never takes a new stamp" src/file-watch.sh \
+    '/\${!stamp} = \${v}now;/d'
+
+# ---- selecting and editing (step 3) ----
+mutant bug "a click misses the box's edge" src/hit-test.sh \
+    's/\.locate_all_at_point(\[\${!pos}\.x, \${!pos}\.y\])/.locate_all_at_point([${!pos}.x + 0.5, ${!pos}.y + 0.5])/'
+mutant bug "overlaps give the last node, not the first" src/hit-test.sh \
+    's/\.min_by_key(|id| (\${!doc}\.nodes\[\*id\]\.tag != "text", \*id));/.min_by_key(|id| (${!doc}.nodes[*id].tag != "text", usize::MAX - *id));/'
+mutant bug "a second click doesn't deselect" src/select.sh \
+    's/\${!selection}\.ids\.retain(|other| \*other != id);/let _ = id;/'
+mutant bug "a new selection isn't the one being edited" src/select.sh \
+    's/\${!selection}\.ids\.push(id);/${!selection}.ids.insert(0, id);/'
+mutant bug "the selection colors are swapped" src/draw-doc.sh \
+    's/let shown = Some(if last { EDIT_COLOR } else { SEL_COLOR });/let shown = Some(if last { SEL_COLOR } else { EDIT_COLOR });/'
+mutant bug "a node with no stroke is recolored" src/draw-doc.sh \
+    's/let mut color_attr: Option<\&str> = None;/let mut color_attr: Option<\&str> = Some("stroke");/'
+mutant bug "node XML loses attribute order" src/node-xml.sh \
+    's/for (name, value) in \${!node}\.attrs\.iter() {/for (name, value) in ${!node}.attrs.iter().rev() {/'
+mutant bug "an edit removes the attributes it leaves out" src/node-apply.sh \
+    's/\${!target}\.tag = \${!edited}\.tag\.clone();/${!target}.tag = ${!edited}.tag.clone(); ${!target}.attrs.clear();/'
+mutant bug "an edit keeps the old tag" src/node-apply.sh \
+    '/\${!target}\.tag = \${!edited}\.tag\.clone();/d'
+mutant bug "map ignores y" src/map.sh \
+    's/let \${v}dy = \${v}spots\[1\]\.1 - \${v}spots\[0\]\.1;/let ${v}dy = 0.0f64;/'
+mutant bug "map skips polylines" src/map.sh \
+    's/if maps \&\& is_polyline \&\& name == "points" {/if false {/'
+mutant bug "map ignores stroke-width" src/map.sh \
+    's/if widens \&\& name == "stroke-width" {/if false {/'
+mutant bug "a circle's anchor is read as x, y" src/map.sh \
+    's/let (x_name, y_name) = if node\.tag == "circle" { ("cx", "cy") } else { ("x", "y") };/let (x_name, y_name) = ("x", "y");/'
+
+# ---- text nodes (step 4) ----
+mutant bug "a label loses the click to its box" src/hit-test.sh \
+    's/\.min_by_key(|id| (\${!doc}\.nodes\[\*id\]\.tag != "text", \*id));/.min_by_key(|id| (false, *id));/'
+mutant bug "a selected text isn't recolored" src/draw-doc.sh \
+    's/let colors_it = name == "stroke" || (name == "fill" \&\& node\.tag == "text");/let colors_it = name == "stroke";/'
+mutant bug "node XML drops a text's text" src/node-xml.sh \
+    's/    if \${!node}\.tag == "text" {/    if false {/'
+mutant bug "a text edit keeps the old text" src/node-apply.sh \
+    's/    if \${!target}\.tag == "text" {/    if false {/'
+mutant bug "nodes of the same kind don't follow" src/map.sh \
+    's/let maps = \${v}kinds\.contains(\&\${!after}\.tag\.as_str()) \&\& \${v}kinds\.contains(\&dest\.tag\.as_str());/let maps = ${v}kinds.contains(\&${!after}.tag.as_str()) \&\& ${v}kinds.contains(\&dest.tag.as_str()) \&\& ${!after}.tag != dest.tag;/'
+mutant bug "text doesn't follow" src/map.sh \
+    's/let \${v}kinds = \["rect", "circle", "polyline", "text"\];/let ${v}kinds = ["rect", "circle", "polyline"];/'
+mutant bug "text pairs carry the stroke change" src/map.sh \
+    's/let widens = maps \&\& \${!after}\.tag != "text" \&\& dest\.tag != "text";/let widens = maps;/'
+mutant bug "the mode notice never goes away" src/mode-notice.sh \
+    's/    if \${!since} < MODE_NOTICE_SECS {/    if true {/'
+mutant bug "every mode says Select Mode" src/mode-notice.sh \
+    's/        let text = if \${!mode} == 0 {/        let text = if true {/'
+
+# ---- the status line's hints ----
+mutant bug "the hints name the first selected, not the one being edited" src/hud-hints.sh \
+    's/        \.last()$/        .first()/'
+mutant bug "the HUD leaves out the hints" src/draw-hud.sh \
+    '/    draw_text(\${!hints}, /d'
+
+# ---- keys after the editor ----
+mutant bug "a key after a lost release stays a repeat" src/key-presses.sh \
+    's/if !repeat || after_lost_release {/if !repeat {/'
+mutant bug "holding a key repeats its press" src/key-presses.sh \
+    's/if !repeat || after_lost_release {/if true {/'
+mutant bug "a lost key stays lost" src/key-presses.sh \
+    '/^                \${!lost}\.retain(|held| \*held != key);$/d'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {

@@ -7,8 +7,10 @@
 # The interface these tests fix:
 #   svg-load.sh  binds Text (&str), declares Doc and Error. The root <svg>'s
 #       attributes go to Doc.root_attrs; every other element becomes a Node,
-#       in document order, attributes in file order, values and text raw.
-#       Node.bounds follows the old web app's setMouseRects.
+#       in document order, attributes in file order, values and text raw,
+#       with the index of its enclosing element as Node.parent.
+#   mouse-rects.sh  binds Nodes. Node.bounds follows the old web app's
+#       setMouseRects.
 
 : "${NSMAP:?set NSMAP (see test.sh)}"
 
@@ -18,6 +20,7 @@ v=mn_
 # maps
 export ${v}load_Text=svg_text
 export ${v}load_Doc=doc
+export ${v}rects_Nodes=doc.nodes
 export ${v}load_Error=error
 
 cat << EOF
@@ -54,6 +57,7 @@ fn elements_load_in_document_order_with_attributes_in_file_order() {
     let svg_text = SVG_EX;
 
     ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
 
     assert_eq!(error, None);
     assert_eq!(
@@ -92,6 +96,7 @@ fn text_and_attribute_values_stay_raw() {
     let svg_text = r#"<svg><text x="1" y="2" id="a&amp;b">A &amp; B &lt;C&gt; &#65;</text></svg>"#;
 
     ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
 
     assert_eq!(error, None);
     assert_eq!(doc.nodes[0].text, "A &amp; B &lt;C&gt; &#65;");
@@ -103,6 +108,7 @@ fn click_boxes_follow_the_old_rules() {
     let svg_text = SVG_EX;
 
     ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
 
     assert_eq!(error, None);
 
@@ -122,6 +128,7 @@ fn a_line_box_is_padded_by_one_either_way() {
     let svg_text = r#"<svg><line x1="50" y1="20" x2="10" y2="20" stroke="black"/></svg>"#;
 
     ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
 
     assert_eq!(error, None);
 
@@ -133,6 +140,7 @@ fn text_coordinates_are_truncated_like_parse_int() {
     let svg_text = r#"<svg><text x="10.9" y="20.9">l</text></svg>"#;
 
     ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
 
     assert_eq!(error, None);
 
@@ -147,6 +155,7 @@ fn numbers_are_read_like_parse_float() {
     let svg_text = r#"<svg><rect x="10px" y=" 20" width="100.5px" height="5e1" stroke-width="1px"/><text x="333.9px" y="134px">a</text><polyline points="1px,2 30px 40"/><rect x="abc" y="-" width="1e" height="+2"/></svg>"#;
 
     ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
 
     assert_eq!(error, None);
     assert_eq!(doc.nodes[0].bounds, Rect::new(9.0, 19.0, 102.5, 52.0));
@@ -158,10 +167,36 @@ fn numbers_are_read_like_parse_float() {
 }
 
 #[test]
+fn nested_elements_know_their_parent() {
+    let svg_text = r#"<svg><rect/><g id="outer"><circle/><g id="inner"><text>a</text><line/></g><polyline/></g><title>t</title></svg>"#;
+
+    ` ./svg-load.sh ${v}load_ `
+
+    assert_eq!(error, None);
+    let parents: Vec<(&str, Option<usize>)> =
+        doc.nodes.iter().map(|node| (node.tag.as_str(), node.parent)).collect();
+    assert_eq!(
+        parents,
+        vec![
+            ("rect", None),
+            ("g", None),
+            ("circle", Some(1)),
+            ("g", Some(1)),
+            ("text", Some(3)),
+            ("line", Some(3)),
+            ("polyline", Some(1)),
+            ("title", None),
+        ]
+    );
+    assert_eq!(doc.nodes[4].text, "a");
+}
+
+#[test]
 fn invalid_xml_is_an_error() {
     let svg_text = r#"<svg><rect x="1" y="2"></line></svg>"#;
 
     ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
 
     assert!(error.is_some(), "expected an error, got {:?}", doc);
 }
@@ -171,6 +206,7 @@ fn a_file_without_an_svg_root_is_an_error() {
     let svg_text = r#"<rect x="1" y="2"/>"#;
 
     ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
 
     assert_eq!(error, Some("no <svg> root element".to_string()));
 }

@@ -7,17 +7,22 @@
 #                             (declared by the caller)
 #   input/output:  Scroll     f32, how far the tree is scrolled, in screen
 #                             pixels (declared by the caller)
+#   input:         Selected   Option<&std::path::Path>, the open page's file
 #   output:        Clicked    Option<std::path::PathBuf> (declared here), the
 #                             file clicked this frame, to open
+#   output:        EditFile   bool (declared here), true when the open page's
+#                             edit button was clicked
 #
 # Only acts with the mouse over the panel (x < TREE_W). The wheel scrolls
 # TREE_SCROLL_ROWS rows a notch, kept between the top and the last row. A
-# left click on a folder folds or unfolds it; on a file, reports the file.
+# left click on a folder folds or unfolds it; on a file, reports the file;
+# on the edit button (the last TREE_BUTTON_W pixels of the open page's row),
+# reports EditFile instead.
 # Rows under a folded folder are hidden and take no space.
 
 v=$1
 # maps
-. ${NSMAP}/bind ${v} Entries Collapsed Scroll Clicked
+. ${NSMAP}/bind ${v} Entries Collapsed Scroll Selected Clicked EditFile
 
 cat << EOF
 
@@ -36,6 +41,7 @@ cat << EOF
     }
 
     let mut ${!clicked}: Option<std::path::PathBuf> = None;
+    let mut ${!edit_file} = false;
     let ${v}mouse = Vec2::from(mouse_position());
     let ${v}over = ${v}mouse.x >= 0.0 && ${v}mouse.x < TREE_W;
 
@@ -56,10 +62,14 @@ cat << EOF
     {
         let entry = &${!entries}[${v}rows[${v}row as usize]];
         let folded = ${!collapsed}.contains(&entry.path);
+        let on_button = ${!selected} == Some(entry.path.as_path())
+            && ${v}mouse.x >= TREE_W - TREE_BUTTON_W;
         if entry.is_dir && folded {
             ${!collapsed}.retain(|path| path != &entry.path);
         } else if entry.is_dir {
             ${!collapsed}.push(entry.path.clone());
+        } else if on_button {
+            ${!edit_file} = true;
         } else {
             ${!clicked} = Some(entry.path.clone());
         }
