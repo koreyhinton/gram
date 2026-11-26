@@ -15,6 +15,7 @@ cargo run -- ~/diagram_root
 - `build.sh` keeps the last good `main.rs` if rustfmt fails.
 - `main.sh` prints `#![allow(non_snake_case)]` because orc names like `mn_join_Post` aren't snake case.
 - `./test.sh` generates `tests/*.test.sh` into `tests/*.rs` (gitignored) and runs `cargo test`. Run `. ./orc-env.sh` before generating one test file by hand.
+- `orc-env.sh` pins orc's core version (`0.1.0`), and CI checks out the matching tag (`ref: core/v0.1.0`). A different `../orc` stops the build. Bump both together to move to a newer orc.
 - `tests/mutate.sh` checks that the tests fail when a snippet is missing or broken.
 - `src/models.sh` prints the app's constants and types (Node, Doc, Selection, ...). `main.sh` and the tests both print it, so snippets compile against the same definitions everywhere.
 
@@ -41,7 +42,7 @@ cargo run -- ~/diagram_root
 - Parse with `quick-xml`. Serialization is hand-written, ported from the JS `nd2xml`/`nds2xml`.
 - Selection is shown by recoloring (edit color `#CAFFB5` for the last selected node, `#C0D6FC` for the others), with the original color cached. Anything written to disk or handed to the editor uses the cached color, never the selection color.
 - Saves are atomic: write `<file>.tmp`, then rename it over the file.
-- The canvas is 750×750. Text hit boxes use the JS per-character widths (`StartEndFrame.FromText`) until `PLAN.md` says otherwise, because tests depend on them.
+- The document is a 750×750 page sheet at world (0, 0) on an infinite canvas (pan, zoom, adaptive grid). An R-tree (`rstar`) indexes node bounds; drawing culls through it but keeps document order. Text hit boxes use the JS per-character widths (`StartEndFrame.FromText`) until `PLAN.md` says otherwise, because tests depend on them.
 
 ## External editor
 
