@@ -190,6 +190,32 @@ fn selected_nodes_are_drawn_in_the_selection_colors() {
 }
 
 #[test]
+fn a_selected_text_is_drawn_in_the_selection_color() {
+    // a text's color is its fill (step 4's getcolor/setcolor)
+    let svg_text = r#"<svg><text x="10" y="20" fill="black">Receive</text><text x="10" y="40" fill="black">Request</text></svg>"#;
+    let canvas = canvas_at(1.0);
+    let selection = Selection { ids: vec![1, 0] };
+
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}dsel_ `
+
+    let colors: Vec<(String, Color)> = drawn()
+        .into_iter()
+        .filter_map(|drawn| match drawn {
+            Drawn::Text { text, color, .. } => Some((text, color)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        colors,
+        vec![("Receive".to_string(), EDIT_COLOR), ("Request".to_string(), SEL_COLOR)]
+    );
+}
+
+#[test]
 fn a_transparent_fill_draws_only_the_outline() {
     let svg_text = r#"<svg><rect x="10" y="10" width="100" height="50" stroke="black" fill="transparent" stroke-width="1"/></svg>"#;
     let canvas = canvas_at(1.0);

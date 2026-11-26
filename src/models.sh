@@ -61,6 +61,11 @@ const TREE_TEXT: Color = Color::new(0.15, 0.16, 0.18, 1.0);
 const TREE_SELECTED: Color = Color::new(0.80, 0.86, 0.96, 1.0);
 const BANNER_BG: Color = Color::new(0.16, 0.18, 0.22, 0.92);
 const BANNER_TEXT: Color = Color::new(1.0, 1.0, 1.0, 1.0);
+// the mode notice (the old setNumMode's notifyMsg): green, top right
+const NOTICE_BG: Color = Color::new(0.0, 1.0, 0.0, 0.6);
+const NOTICE_TEXT: Color = Color::new(1.0, 1.0, 1.0, 1.0);
+const NOTICE_PX: u16 = 64;
+const MODE_NOTICE_SECS: f64 = 3.0;
 
 // selection is shown by recoloring a node's stroke: the node being edited
 // (the last one selected) in EDIT_COLOR (#CAFFB5), the others in SEL_COLOR

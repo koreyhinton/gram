@@ -47,7 +47,7 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
-    node-apply map banner; do
+    node-apply map banner mode-notice; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -201,15 +201,15 @@ mutant bug "the watch never takes a new stamp" src/file-watch.sh \
 mutant bug "a click misses the box's edge" src/hit-test.sh \
     's/\.locate_all_at_point(\[\${!pos}\.x, \${!pos}\.y\])/.locate_all_at_point([${!pos}.x + 0.5, ${!pos}.y + 0.5])/'
 mutant bug "overlaps give the last node, not the first" src/hit-test.sh \
-    's/        \.min();/        .max();/'
+    's/\.min_by_key(|id| (\${!doc}\.nodes\[\*id\]\.tag != "text", \*id));/.min_by_key(|id| (${!doc}.nodes[*id].tag != "text", usize::MAX - *id));/'
 mutant bug "a second click doesn't deselect" src/select.sh \
     's/\${!selection}\.ids\.retain(|other| \*other != id);/let _ = id;/'
 mutant bug "a new selection isn't the one being edited" src/select.sh \
     's/\${!selection}\.ids\.push(id);/${!selection}.ids.insert(0, id);/'
 mutant bug "the selection colors are swapped" src/draw-doc.sh \
-    's/stroke = Some(if last { EDIT_COLOR } else { SEL_COLOR });/stroke = Some(if last { SEL_COLOR } else { EDIT_COLOR });/'
+    's/let shown = Some(if last { EDIT_COLOR } else { SEL_COLOR });/let shown = Some(if last { SEL_COLOR } else { EDIT_COLOR });/'
 mutant bug "a node with no stroke is recolored" src/draw-doc.sh \
-    's/^            \&\& has_stroke$/            \&\& (has_stroke || true)/'
+    's/let mut color_attr: Option<\&str> = None;/let mut color_attr: Option<\&str> = Some("stroke");/'
 mutant bug "node XML loses attribute order" src/node-xml.sh \
     's/for (name, value) in \${!node}\.attrs\.iter() {/for (name, value) in ${!node}.attrs.iter().rev() {/'
 mutant bug "an edit removes the attributes it leaves out" src/node-apply.sh \
@@ -221,11 +221,29 @@ mutant bug "map ignores y" src/map.sh \
 mutant bug "map skips polylines" src/map.sh \
     's/if maps \&\& is_polyline \&\& name == "points" {/if false {/'
 mutant bug "map ignores stroke-width" src/map.sh \
-    's/if maps \&\& name == "stroke-width" {/if false {/'
-mutant bug "map moves nodes of the same kind" src/map.sh \
-    's/            \&\& \${!after}\.tag != dest\.tag;/            ;/'
+    's/if widens \&\& name == "stroke-width" {/if false {/'
 mutant bug "a circle's anchor is read as x, y" src/map.sh \
     's/let (x_name, y_name) = if node\.tag == "circle" { ("cx", "cy") } else { ("x", "y") };/let (x_name, y_name) = ("x", "y");/'
+
+# ---- text nodes (step 4) ----
+mutant bug "a label loses the click to its box" src/hit-test.sh \
+    's/\.min_by_key(|id| (\${!doc}\.nodes\[\*id\]\.tag != "text", \*id));/.min_by_key(|id| (false, *id));/'
+mutant bug "a selected text isn't recolored" src/draw-doc.sh \
+    's/let colors_it = name == "stroke" || (name == "fill" \&\& node\.tag == "text");/let colors_it = name == "stroke";/'
+mutant bug "node XML drops a text's text" src/node-xml.sh \
+    's/    if \${!node}\.tag == "text" {/    if false {/'
+mutant bug "a text edit keeps the old text" src/node-apply.sh \
+    's/    if \${!target}\.tag == "text" {/    if false {/'
+mutant bug "nodes of the same kind don't follow" src/map.sh \
+    's/let maps = \${v}kinds\.contains(\&\${!after}\.tag\.as_str()) \&\& \${v}kinds\.contains(\&dest\.tag\.as_str());/let maps = ${v}kinds.contains(\&${!after}.tag.as_str()) \&\& ${v}kinds.contains(\&dest.tag.as_str()) \&\& ${!after}.tag != dest.tag;/'
+mutant bug "text doesn't follow" src/map.sh \
+    's/let \${v}kinds = \["rect", "circle", "polyline", "text"\];/let ${v}kinds = ["rect", "circle", "polyline"];/'
+mutant bug "text pairs carry the stroke change" src/map.sh \
+    's/let widens = maps \&\& \${!after}\.tag != "text" \&\& dest\.tag != "text";/let widens = maps;/'
+mutant bug "the mode notice never goes away" src/mode-notice.sh \
+    's/    if \${!since} < MODE_NOTICE_SECS {/    if true {/'
+mutant bug "every mode says Select Mode" src/mode-notice.sh \
+    's/        let text = if \${!mode} == 0 {/        let text = if true {/'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {

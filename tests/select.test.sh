@@ -4,20 +4,24 @@
 # it to tests/select.rs). They follow the old web app's first ActSvg
 # (devbox@c702432): click to select, the selection colors, a node out as
 # XML, the edit back in, and the edit carried over to the other selected
-# nodes. A node edit round trip runs a real editor process (sed -i).
+# nodes; then its text nodes (devbox@8c8c666). A node edit round trip runs a
+# real editor process (sed -i).
 #
 # The interface these tests fix:
-#   hit-test.sh    binds Doc, Index, Pos and Hit. The first node in document
-#       order whose click box holds the point, edges included; shapes only.
+#   hit-test.sh    binds Doc, Index, Pos and Hit. Of the shapes whose click
+#       box holds the point, edges included: text first, then the first in
+#       document order.
 #   select.sh      binds Selection and Hit. A click toggles the node; the
 #       last selected is the one being edited; empty space changes nothing.
-#   node-xml.sh    binds Node and Xml. <tag a="v" .../>, attributes in order.
-#   node-apply.sh  binds Edited and Target. Replaces the tag; updates or adds
-#       each attribute; removes none.
+#   node-xml.sh    binds Node and Xml. <tag a="v" .../>, attributes in order;
+#       a text node holds its raw text.
+#   node-apply.sh  binds Edited and Target. Replaces the tag (and a text's
+#       text); updates or adds each attribute; removes none.
 #   map.sh         binds Before, After, Others and Nodes. The edited node's
-#       change of anchor (rect x/y, circle cx/cy, polyline first point) moves
-#       each other selected node, and its stroke-width change is added, for
-#       pairs of different kinds among rect, circle and polyline.
+#       change of anchor (rect and text x/y, circle cx/cy, polyline first
+#       point) moves each other selected node, for any pair among rect,
+#       circle, polyline and text; its stroke-width change is added between
+#       shapes that aren't text.
 
 : "${NSMAP:?set NSMAP (see test.sh)}"
 
@@ -112,6 +116,30 @@ fn a_click_finds_the_node_under_it_edges_included() {
 }
 
 #[test]
+fn a_click_on_a_label_picks_the_label_and_beside_it_the_box() {
+    // step 4's svgEx: the labels come after their rect, yet win the click
+    let svg_text = r#"<svg><rect x="325" y="112" width="100" height="50" stroke-width="1"/><text x="333" y="134" fill="black">Receive</text><text x="333" y="154" fill="black">Request</text></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+
+    // TDD TEST 0's clicks on the two labels
+    let pos = vec2(364.0, 129.0);
+    ` ./hit-test.sh ${v}hit_ `
+    assert_eq!(hit, Some(1));
+    let pos = vec2(364.0, 151.0);
+    ` ./hit-test.sh ${v}hit_ `
+    assert_eq!(hit, Some(2));
+
+    // TDD TEST 1's click, in the white space right of "Receive": the rect
+    let pos = vec2(411.0, 129.0);
+    ` ./hit-test.sh ${v}hit_ `
+    assert_eq!(hit, Some(0));
+    // the document keeps its order
+    assert_eq!(doc.nodes[0].tag, "rect");
+}
+
+#[test]
 fn overlapping_boxes_give_the_first_in_document_order() {
     let svg_text = r#"<svg><rect x="0" y="0" width="100" height="100"/><circle cx="50" cy="50" r="10"/></svg>"#;
     ` ./svg-load.sh ${v}load_ `
@@ -180,6 +208,30 @@ fn a_node_is_written_with_its_attributes_in_order() {
 }
 
 #[test]
+fn a_text_node_is_written_with_its_raw_text() {
+    let svg_text = r#"<svg><text x="333" y="134" fill="black">A &amp; B</text></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let id = 0;
+
+    ` ./node-xml.sh ${v}xml_ `
+
+    assert_eq!(xml, r#"<text x="333" y="134" fill="black">A &amp; B</text>"#);
+}
+
+#[test]
+fn a_text_edit_takes_the_new_text() {
+    let svg_text = r#"<svg><text x="333" y="134">Receive</text></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let id = 0;
+    let edit_text = r#"<svg><text x="333" y="134">Send &lt;all&gt;</text></svg>"#;
+    ` ./svg-load.sh ${v}eload_ `
+
+    ` ./node-apply.sh ${v}apply_ `
+
+    assert_eq!(doc.nodes[0].text, "Send &lt;all&gt;");
+}
+
+#[test]
 fn an_edit_updates_and_adds_attributes_but_never_removes_one() {
     let svg_text = r#"<svg><rect x="1" y="2" data-keep="yes" stroke="black"/></svg>"#;
     ` ./svg-load.sh ${v}load_ `
@@ -242,20 +294,69 @@ fn an_edit_moves_the_other_selected_nodes_of_other_kinds() {
 }
 
 #[test]
-fn nodes_of_the_same_kind_dont_follow_yet() {
-    // step 3 maps only pairs of different kinds (rect->rect comes at step 4)
-    let svg_text = r#"<svg><rect x="10" y="10"/><rect x="50" y="50"/></svg>"#;
+fn nodes_of_the_same_kind_follow() {
+    // step 4's rect->rect, circle->circle and polyline->polyline, with the
+    // stroke-width change (written as act.svg's node-map.js has them)
+    let pairs = [
+        (r#"<rect x="10" y="10" stroke-width="1"/>"#, r#"<rect x="20" y="15" stroke-width="2"/>"#, r#"<rect x="50" y="50" stroke-width="1"/>"#),
+        (r#"<circle cx="10" cy="10" stroke-width="1"/>"#, r#"<circle cx="20" cy="15" stroke-width="2"/>"#, r#"<circle cx="50" cy="50" stroke-width="1"/>"#),
+        (r#"<polyline points="10 10 20 20" stroke-width="1"/>"#, r#"<polyline points="20 15 30 25" stroke-width="2"/>"#, r#"<polyline points="50 50 60 60" stroke-width="1"/>"#),
+    ];
+    for (old, new, other) in pairs {
+        let svg_text = format!("<svg>{}{}</svg>", old, other);
+        ` ./svg-load.sh ${v}load_ `
+        let before = doc.nodes[0].clone();
+        let edit_text = format!("<svg>{}</svg>", new);
+        ` ./svg-load.sh ${v}eload_ `
+        let after = edited.nodes[0].clone();
+        doc.nodes[0] = after.clone();
+        let others = vec![1usize];
+
+        ` ./map.sh ${v}map_ `
+
+        let moved = &doc.nodes[1];
+        match moved.tag.as_str() {
+            "rect" => assert_eq!((attr(moved, "x"), attr(moved, "y")), ("60", "55")),
+            "circle" => assert_eq!((attr(moved, "cx"), attr(moved, "cy")), ("60", "55")),
+            // both axes: the old polyline->polyline moved y by the x change
+            _ => assert_eq!(attr(moved, "points"), "60 55 70 65"),
+        }
+        assert_eq!(attr(moved, "stroke-width"), "2", "{}", moved.tag);
+    }
+}
+
+#[test]
+fn text_follows_shapes_and_shapes_follow_text_without_their_stroke() {
+    // a rect edit moves its label (the old rect->text wrote to points, which
+    // a text doesn't have; step 5's TDD TEST 0 fixes it); a label edit moves
+    // the rect, polyline and circle, but no stroke changes either way
+    let svg_text = r#"<svg><text x="333" y="134" stroke-width="1">Receive</text><rect x="325" y="112" stroke-width="1"/><polyline points="375 52 375 110" stroke-width="1"/><circle cx="375" cy="40" stroke-width="1"/><text x="333" y="154">Request</text></svg>"#;
     ` ./svg-load.sh ${v}load_ `
+    let before = doc.nodes[1].clone();
+    let edit_text = r#"<svg><rect x="25" y="112" stroke-width="3"/></svg>"#;
+    ` ./svg-load.sh ${v}eload_ `
+    let after = edited.nodes[0].clone();
+    doc.nodes[1] = after.clone();
+    let others = vec![0usize, 4];
+    ` ./map.sh ${v}map_ `
+    assert_eq!((attr(&doc.nodes[0], "x"), attr(&doc.nodes[0], "y")), ("33", "134"));
+    assert_eq!(attr(&doc.nodes[4], "x"), "33");
+    // the rect's stroke went 1 -> 3, but a text takes none of that
+    assert_eq!(attr(&doc.nodes[0], "stroke-width"), "1");
+
     let before = doc.nodes[0].clone();
-    let edit_text = r#"<svg><rect x="20" y="10"/></svg>"#;
+    let edit_text = r#"<svg><text x="43" y="144">Receive</text></svg>"#;
     ` ./svg-load.sh ${v}eload_ `
     let after = edited.nodes[0].clone();
     doc.nodes[0] = after.clone();
-    let others = vec![1usize];
-
+    let others = vec![1usize, 2, 3];
     ` ./map.sh ${v}map_ `
-
-    assert_eq!(attr(&doc.nodes[1], "x"), "50");
+    assert_eq!((attr(&doc.nodes[1], "x"), attr(&doc.nodes[1], "y")), ("35", "122"));
+    assert_eq!(attr(&doc.nodes[2], "points"), "385 62 385 120");
+    assert_eq!((attr(&doc.nodes[3], "cx"), attr(&doc.nodes[3], "cy")), ("385", "50"));
+    // the rect kept the width its own edit gave it; the others kept theirs
+    assert_eq!(attr(&doc.nodes[1], "stroke-width"), "3");
+    assert_eq!(attr(&doc.nodes[2], "stroke-width"), "1");
 }
 
 #[test]

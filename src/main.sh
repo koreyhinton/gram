@@ -82,6 +82,8 @@ export ${v}tree_Pages=ws.pages
 export ${v}tree_Selected=selected
 export ${v}tree_Font=font.as_ref\(\)
 export ${v}banner_Text=\&message
+export ${v}notice_Mode=ws.mode
+export ${v}notice_Since=since
 
 cat << EOF
 
@@ -160,6 +162,9 @@ cat << EOF
         // the page whose edit button warned that its unsaved changes would
         // be replaced, and when (a second click within 5 seconds opens it)
         let mut file_warning: Option<(usize, f64)> = None;
+        // when the mode was last picked: at the start, as the old onStart
+        // picked mode 0, so its notice shows first
+        let mut mode_picked_at = get_time();
 
         loop {
             let open_path: Option<std::path::PathBuf> = ws.open.map(|i| ws.pages[i].path.clone());
@@ -332,6 +337,7 @@ cat << EOF
             for (num, key) in digits.iter().enumerate() {
                 if !editing && is_key_pressed(*key) {
                     ws.mode = num as u8;
+                    mode_picked_at = get_time();
                 }
             }
 
@@ -525,6 +531,11 @@ cat << EOF
             if !message.is_empty() {
                 ` ./banner.sh ${v}banner_ `
             }
+
+            // the mode just picked, for a few seconds
+            let since = get_time() - mode_picked_at;
+
+            ` ./mode-notice.sh ${v}notice_ `
 
             next_frame().await
         }

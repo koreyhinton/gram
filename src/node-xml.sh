@@ -6,7 +6,8 @@
 #   output:  Xml   String (declared here)
 #
 # The tag, then each attribute in its order with its raw value:
-# <rect x="1" y="2"/>. The node's own colors are written: selection is only
+# <rect x="1" y="2"/>. A text node holds its raw text:
+# <text x="1" y="2">Receive</text>. The node's own colors are written: selection is only
 # drawn, never stored, so a selected node's XML is as it is in the file.
 
 v=$1
@@ -20,6 +21,10 @@ cat << EOF
     for (name, value) in ${!node}.attrs.iter() {
         ${!xml}.push_str(&format!(" {}=\"{}\"", name, value));
     }
-    ${!xml}.push_str("/>");
+    if ${!node}.tag == "text" {
+        ${!xml}.push_str(&format!(">{}</text>", ${!node}.text));
+    } else {
+        ${!xml}.push_str("/>");
+    }
 
 EOF

@@ -9,11 +9,12 @@
 #                          Nodes)
 #   input/output:  Nodes   Vec<Node>
 #
-# Each node sits at an anchor: x, y for a rect; cx, cy for a circle; the
-# first point for a polyline. The edit's change of anchor moves each other
-# node (a polyline moves every point), and its change of stroke-width is
-# added to theirs. Only pairs of different kinds among rect, circle and
-# polyline map; any other pair is left alone. Numbers are read as JS
+# Each node sits at an anchor: x, y for a rect or a text; cx, cy for a
+# circle; the first point for a polyline. The edit's change of anchor moves
+# each other node (a polyline moves every point), and, between shapes that
+# aren't text, its change of stroke-width is added to theirs. Any pair among
+# rect, circle, polyline and text maps, the same kind included; any other
+# node is left alone. Numbers are read as JS
 # parseFloat read them and written as JS wrote them, and only attributes a
 # node already has are changed.
 
@@ -57,16 +58,16 @@ cat << EOF
     let ${v}dstroke = ${v}spots[1].2 - ${v}spots[0].2;
 
     // move each other selected node by the same change
-    let ${v}kinds = ["rect", "circle", "polyline"];
+    let ${v}kinds = ["rect", "circle", "polyline", "text"];
     for &id in ${!others}.iter() {
         let dest = &mut ${!nodes}[id];
-        let maps = ${v}kinds.contains(&${!after}.tag.as_str())
-            && ${v}kinds.contains(&dest.tag.as_str())
-            && ${!after}.tag != dest.tag;
+        let maps = ${v}kinds.contains(&${!after}.tag.as_str()) && ${v}kinds.contains(&dest.tag.as_str());
+        // text has no stroke to widen, either way
+        let widens = maps && ${!after}.tag != "text" && dest.tag != "text";
         let (x_name, y_name) = if dest.tag == "circle" { ("cx", "cy") } else { ("x", "y") };
         let is_polyline = dest.tag == "polyline";
         for (name, value) in dest.attrs.iter_mut() {
-            if maps && name == "stroke-width" {
+            if widens && name == "stroke-width" {
                 *value = format!("{}", js_parse_float(value) + ${v}dstroke);
             }
             if maps && !is_polyline && name == x_name {
