@@ -41,7 +41,7 @@ cargo run -- ~/diagram_root
 - Parse with `quick-xml`. Serialization is hand-written, ported from the JS `nd2xml`/`nds2xml`.
 - Selection is shown by recoloring (edit color `#CAFFB5` for the last selected node, `#C0D6FC` for the others), with the original color cached. Anything written to disk or handed to the editor uses the cached color, never the selection color.
 - Saves are atomic: write `<file>.tmp`, then rename it over the file.
-- The canvas is 750×750. Text hit boxes use the JS per-character widths (`StartEndFrame.FromText`) until `PLAN.md` says otherwise, because tests depend on them.
+- The document is a 750×750 page sheet at world (0, 0) on an infinite canvas (pan, zoom, adaptive grid). An R-tree (`rstar`) indexes node bounds; drawing culls through it but keeps document order. Text hit boxes use the JS per-character widths (`StartEndFrame.FromText`) until `PLAN.md` says otherwise, because tests depend on them.
 
 ## External editor
 

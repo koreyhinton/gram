@@ -4,3 +4,4 @@ target/
 src/main.rs
 tests/*.rs
 *~
+src/main.rs.tmp

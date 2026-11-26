@@ -1,0 +1,36 @@
+# Generates main.rs and the tests from bash with orc, then runs the tests
+
+name: Rust CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  rust:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    # build.sh and test.sh expect orc cloned next to this repo (../orc)
+    - name: checkout gram using actions/checkout@v4
+      uses: actions/checkout@v4
+      with:
+        path: gram
+    - name: checkout orc using actions/checkout@v4
+      uses: actions/checkout@v4
+      with:
+        repository: koreyhinton/orc
+        ref: main
+        path: orc
+    # the tests stub every macroquad draw and input call, so they need no
+    # window or display
+    - name: run tests
+      working-directory: ./gram
+      run: ./test.sh
+    # each mutant breaks or removes one piece of the app; a test must fail on it
+    - name: run mutation tests
+      working-directory: ./gram
+      run: ./tests/mutate.sh

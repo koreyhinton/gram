@@ -1,0 +1,333 @@
+#!/bin/bash
+
+# draw-doc: draw a Doc's elements that are in view, in world space (call it
+# with the world camera set), in document order so later elements paint over
+# earlier ones.
+#
+#   input:  Doc     Doc
+#   input:  Index   rstar::RTree<SpatialEntry> (from spatial-index)
+#   input:  Canvas  Canvas
+#   input:  Font    Option<&Font>, None for macroquad's default font
+#
+# Supports line, polyline, rect (rx/ry), circle and text: fill and stroke
+# (svg defaults: fill black, stroke none), stroke-width, stroke-dasharray,
+# font-size (px, smaller, larger; or in style) and text-decoration
+# (underline, line-through). Other elements are skipped.
+
+v=$1
+# maps
+. ${NSMAP}/bind ${v} Doc Index Canvas Font
+
+cat << EOF
+
+    // the nodes whose bounds touch the view, padded a little because a
+    // polyline's bounds leave out its stroke
+    let ${v}pad = 10.0 + 4.0 / ${!canvas}.zoom;
+    let ${v}view_min = [${!canvas}.offset.x - ${v}pad, ${!canvas}.offset.y - ${v}pad];
+    let ${v}view_max = [
+        ${!canvas}.offset.x + screen_width() / ${!canvas}.zoom + ${v}pad,
+        ${!canvas}.offset.y + screen_height() / ${!canvas}.zoom + ${v}pad,
+    ];
+    let mut ${v}ids: Vec<usize> = ${!index}
+        .locate_in_envelope_intersecting(rstar::AABB::from_corners(${v}view_min, ${v}view_max))
+        .map(|entry| entry.id)
+        .collect();
+    // document order: the tree returns them in its own order
+    ${v}ids.sort_unstable();
+
+    for ${v}id in ${v}ids {
+        let node = &${!doc}.nodes[${v}id];
+
+        // the element's attributes; a missing or unreadable one keeps its
+        // svg default
+        let mut fill: Option<Color> = Some(BLACK);
+        let mut stroke: Option<Color> = None;
+        let mut stroke_w = 1.0f32;
+        let mut dashes: Vec<f32> = vec![];
+        let mut size_spec: Option<String> = None;
+        let mut decoration = String::new();
+        let (mut x, mut y, mut w, mut h) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+        let (mut rx, mut ry): (Option<f32>, Option<f32>) = (None, None);
+        let (mut cx, mut cy, mut r) = (0.0f32, 0.0f32, 0.0f32);
+        let (mut x1, mut y1, mut x2, mut y2) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+        let mut points: Vec<f32> = vec![];
+        for (name, value) in node.attrs.iter() {
+            let num = value.trim().trim_end_matches("px").parse::<f32>().ok();
+            match name.as_str() {
+                "fill" | "stroke" => {
+                    // a color: none, transparent, #rgb, #rrggbb or a keyword
+                    let lower = value.trim().to_ascii_lowercase();
+                    let hex = lower.strip_prefix('#').unwrap_or("");
+                    let mut paint: Option<Option<Color>> = None;
+                    if lower == "none" || lower == "transparent" {
+                        paint = Some(None);
+                    } else if hex.len() == 6 && u32::from_str_radix(hex, 16).is_ok() {
+                        let rgb = u32::from_str_radix(hex, 16).unwrap_or(0);
+                        paint = Some(Some(Color::from_rgba(
+                            (rgb >> 16) as u8,
+                            (rgb >> 8) as u8,
+                            rgb as u8,
+                            255,
+                        )));
+                    } else if hex.len() == 3 && u32::from_str_radix(hex, 16).is_ok() {
+                        let rgb = u32::from_str_radix(hex, 16).unwrap_or(0);
+                        paint = Some(Some(Color::from_rgba(
+                            ((rgb >> 8) & 0xf) as u8 * 17,
+                            ((rgb >> 4) & 0xf) as u8 * 17,
+                            (rgb & 0xf) as u8 * 17,
+                            255,
+                        )));
+                    } else if let Some((_, rgb)) = NAMED_COLORS.iter().find(|(key, _)| *key == lower) {
+                        paint = Some(Some(Color::from_rgba(rgb[0], rgb[1], rgb[2], 255)));
+                    }
+                    if let Some(paint) = paint {
+                        if name == "fill" {
+                            fill = paint;
+                        } else {
+                            stroke = paint;
+                        }
+                    }
+                }
+                "stroke-width" => stroke_w = num.unwrap_or(stroke_w),
+                "stroke-dasharray" => {
+                    dashes = value
+                        .split(|c: char| c == ',' || c.is_whitespace())
+                        .filter(|part| !part.is_empty())
+                        .map(|part| part.parse::<f32>().unwrap_or(0.0).max(0.0))
+                        .collect();
+                }
+                "font-size" => size_spec = Some(value.trim().to_string()),
+                "style" => {
+                    for decl in value.split(';') {
+                        if let Some((key, spec)) = decl.split_once(':')
+                            && key.trim() == "font-size"
+                        {
+                            size_spec = Some(spec.trim().to_string());
+                        }
+                    }
+                }
+                "text-decoration" => decoration = value.clone(),
+                "x" => x = num.unwrap_or(0.0),
+                "y" => y = num.unwrap_or(0.0),
+                "width" => w = num.unwrap_or(0.0),
+                "height" => h = num.unwrap_or(0.0),
+                "rx" => rx = num,
+                "ry" => ry = num,
+                "cx" => cx = num.unwrap_or(0.0),
+                "cy" => cy = num.unwrap_or(0.0),
+                "r" => r = num.unwrap_or(0.0),
+                "x1" => x1 = num.unwrap_or(0.0),
+                "y1" => y1 = num.unwrap_or(0.0),
+                "x2" => x2 = num.unwrap_or(0.0),
+                "y2" => y2 = num.unwrap_or(0.0),
+                "points" => {
+                    points = value
+                        .split(|c: char| c == ',' || c.is_whitespace())
+                        .filter(|part| !part.is_empty())
+                        .map(|part| part.parse::<f32>().unwrap_or(0.0))
+                        .collect();
+                }
+                _ => {}
+            }
+        }
+        // font-size: px (with or without the unit), or relative to the
+        // default as browsers scale it (1.2 per step)
+        let mut text_size = TEXT_SIZE;
+        if let Some(spec) = size_spec {
+            text_size = match spec.as_str() {
+                "smaller" => TEXT_SIZE / 1.2,
+                "larger" => TEXT_SIZE * 1.2,
+                _ => spec.trim_end_matches("px").trim().parse::<f32>().unwrap_or(TEXT_SIZE),
+            };
+        }
+
+        // the shape as an outline; closed shapes join the last point back to
+        // the first
+        let mut outline: Vec<Vec2> = vec![];
+        let mut closed = false;
+        match node.tag.as_str() {
+            "line" => outline = vec![vec2(x1, y1), vec2(x2, y2)],
+            "polyline" => {
+                outline = points.chunks_exact(2).map(|pair| vec2(pair[0], pair[1])).collect();
+            }
+            "rect" => {
+                if w > 0.0 && h > 0.0 {
+                    // a lone rx or ry sets both, and neither passes half a side
+                    let corner_x = rx.or(ry).unwrap_or(0.0).max(0.0).min(w / 2.0);
+                    let corner_y = ry.or(rx).unwrap_or(0.0).max(0.0).min(h / 2.0);
+                    if corner_x > 0.0 && corner_y > 0.0 {
+                        // each corner's arc, more steps the bigger it is on screen
+                        let steps = ((corner_x.max(corner_y) * ${!canvas}.zoom).sqrt() * 2.0)
+                            .clamp(2.0, 24.0) as usize;
+                        let centers = [
+                            (vec2(x + w - corner_x, y + corner_y), -90.0f32),
+                            (vec2(x + w - corner_x, y + h - corner_y), 0.0f32),
+                            (vec2(x + corner_x, y + h - corner_y), 90.0f32),
+                            (vec2(x + corner_x, y + corner_y), 180.0f32),
+                        ];
+                        for (center, start) in centers {
+                            for step in 0..=steps {
+                                let angle = (start + 90.0 * step as f32 / steps as f32).to_radians();
+                                outline.push(center + vec2(angle.cos() * corner_x, angle.sin() * corner_y));
+                            }
+                        }
+                    } else {
+                        outline = vec![vec2(x, y), vec2(x + w, y), vec2(x + w, y + h), vec2(x, y + h)];
+                    }
+                    closed = true;
+                }
+            }
+            "circle" => {
+                if r > 0.0 {
+                    let steps = (r * ${!canvas}.zoom * 0.5).clamp(16.0, 128.0) as usize;
+                    for step in 0..steps {
+                        let angle = std::f32::consts::TAU * step as f32 / steps as f32;
+                        outline.push(vec2(cx + angle.cos() * r, cy + angle.sin() * r));
+                    }
+                    closed = true;
+                }
+            }
+            _ => {}
+        }
+
+        // fill: a fan of triangles from the outline's center (svg fills an
+        // open polyline as if it were closed)
+        if let Some(color) = fill
+            && node.tag != "line"
+            && outline.len() >= 3
+        {
+            let center = outline.iter().copied().fold(Vec2::ZERO, |sum, point| sum + point)
+                / outline.len() as f32;
+            for i in 0..outline.len() {
+                draw_triangle(center, outline[i], outline[(i + 1) % outline.len()], color);
+            }
+        }
+
+        // stroke: each segment, cut into dashes when there's a dasharray. The
+        // list alternates dash and gap, so stepping through a list of odd
+        // length flips which entries are dashes on each pass, which is svg's
+        // rule of repeating it to make it even. Zero-length dashes draw
+        // nothing (svg's default butt caps). The pattern carries on from one
+        // segment to the next.
+        if let Some(color) = stroke
+            && stroke_w > 0.0
+            && outline.len() >= 2
+        {
+                // never thinner than a screen pixel or so, so it never vanishes
+                let thickness = stroke_w.max(0.75 / ${!canvas}.zoom);
+                let mut segments: Vec<(Vec2, Vec2)> =
+                    outline.windows(2).map(|pair| (pair[0], pair[1])).collect();
+                if closed {
+                    segments.push((outline[outline.len() - 1], outline[0]));
+                }
+                let pattern = &dashes;
+                let dashed = pattern.iter().sum::<f32>() > 0.0;
+                let mut dash_i = 0usize;
+                let mut dash_left = pattern.first().copied().unwrap_or(0.0);
+                let mut dash_on = true;
+                for (from, to) in segments {
+                    let len = from.distance(to);
+                    if !dashed {
+                        draw_line(from.x, from.y, to.x, to.y, thickness, color);
+                    } else if len > 0.0 {
+                        let dir = (to - from) / len;
+                        let mut pos = 0.0f32;
+                        while pos < len {
+                            let step = dash_left.min(len - pos);
+                            if dash_on && step > 0.0 {
+                                let start = from + dir * pos;
+                                let end = from + dir * (pos + step);
+                                draw_line(start.x, start.y, end.x, end.y, thickness, color);
+                            }
+                            pos += step;
+                            dash_left -= step;
+                            if dash_left <= 1e-4 {
+                                dash_i = (dash_i + 1) % pattern.len();
+                                dash_left = pattern[dash_i];
+                                dash_on = !dash_on;
+                            }
+                        }
+                    }
+                }
+            }
+
+        // text: x, y is the baseline's start, as in svg
+        if node.tag == "text"
+            && let Some(color) = fill
+        {
+                // decode entities for display only; the node keeps them
+                let mut decoded = String::new();
+                let mut rest = node.text.as_str();
+                while let Some(start) = rest.find("&#") {
+                    decoded.push_str(&rest[..start]);
+                    let after = &rest[start + 2..];
+                    if let Some(end) = after.find(';') {
+                        let digits = &after[..end];
+                        let code = match digits.strip_prefix('x').or(digits.strip_prefix('X')) {
+                            Some(hex) => u32::from_str_radix(hex, 16).ok(),
+                            None => digits.parse::<u32>().ok(),
+                        };
+                        match code.and_then(char::from_u32) {
+                            Some(ch) => decoded.push(ch),
+                            None => decoded.push_str(&rest[start..start + 2 + end + 1]),
+                        }
+                        rest = &after[end + 1..];
+                    } else {
+                        decoded.push_str(&rest[start..]);
+                        rest = "";
+                    }
+                }
+                decoded.push_str(rest);
+                // svg collapses runs of whitespace and trims the ends
+                let display = decoded
+                    .replace("&lt;", "<")
+                    .replace("&gt;", ">")
+                    .replace("&quot;", "\"")
+                    .replace("&apos;", "'")
+                    .replace("&amp;", "&")
+                    .split_whitespace()
+                    .collect::<Vec<&str>>()
+                    .join(" ");
+
+                let screen_px = text_size * ${!canvas}.zoom;
+                if screen_px < TEXT_LOD_PX {
+                    // too small to read: a faint bar where the text is
+                    // (Courier New's advance is 0.6em)
+                    let bar_w = display.chars().count() as f32 * text_size * 0.6;
+                    draw_line(
+                        x,
+                        y - text_size * 0.3,
+                        x + bar_w,
+                        y - text_size * 0.3,
+                        text_size * 0.5,
+                        Color::new(color.r, color.g, color.b, color.a * 0.35),
+                    );
+                } else {
+                    // glyphs rasterized at their size on screen, so they stay
+                    // crisp at any zoom, then scaled back to world units
+                    let font_px = screen_px.min(TEXT_MAX_PX).round().max(1.0);
+                    let font_scale = text_size / font_px;
+                    draw_text_ex(
+                        &display,
+                        x,
+                        y,
+                        TextParams {
+                            font: ${!font},
+                            font_size: font_px as u16,
+                            font_scale,
+                            color,
+                            ..Default::default()
+                        },
+                    );
+                    let underline = decoration.contains("underline");
+                    let strike = decoration.contains("line-through");
+                    if underline || strike {
+                        let text_w = measure_text(&display, ${!font}, font_px as u16, font_scale).width;
+                        let line_y = if strike { y - text_size * 0.3 } else { y + text_size * 0.12 };
+                        draw_line(x, line_y, x + text_w, line_y, text_size / 16.0, color);
+                    }
+                }
+            }
+    }
+
+EOF

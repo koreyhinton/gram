@@ -54,13 +54,15 @@ tests/*.test.sh    generated into tests/*.rs
 tests/mutate.sh
 ```
 
-Crates: `macroquad` and `quick-xml`, plus a clipboard crate if macroquad's clipboard isn't enough (step 30). Bundle a TTF for text.
+Crates: `macroquad`, `quick-xml` and `rstar`, plus a clipboard crate if macroquad's clipboard isn't enough (step 30). Text uses the bundled `assets/LiberationMono-Regular.ttf` (SIL OFL, license alongside): the old web app's SVG text inherited the page's Courier New, and Liberation Mono has the same metrics.
 
 ## Decisions log
 
 Record here any conflict between a later step and an earlier branch-only feature, along with how it was resolved.
 
-- (none yet)
+- Steps 0–2 (pre-parity): the canvas goes beyond the browser with an infinite canvas, adaptive grid and R-tree. Hit-testing at step 3 should query the R-tree, then apply the JS ordering (`sortedSvgNodes`: text first, swimlanes and classes last).
+- Steps 0–2: CI comes before its paired step (15), as an agreed exception to pairing, because the pre-parity commit already has tests. `.github/workflows/rust.yml` mirrors everkeep's: it checks out gram and orc side by side (`../orc`), then runs `./test.sh` and `tests/mutate.sh`.
+- Steps 0–2: three samples (`diagrams/act (15).svg`, `act(1).svg`, `act(2).svg`) are malformed XML, with a whole `<svg>` pasted into a `fill` attribute. gram reports the parse error and doesn't open them, as a browser would. Worth finding the old-app bug that wrote them when a later step touches paste or attribute editing.
 
 ## Steps
 
@@ -68,9 +70,9 @@ Record here any conflict between a later step and an earlier branch-only feature
 
 | ✓ | # | date | commits | what | T |
 |---|---|---|---|---|---|
-| [ ] | 0 | — | scaffold | Cargo, macroquad, quick-xml, `build.sh`/`test.sh`/`orc-env.sh`/`mutate.sh`, empty window, `gram <path>` argument, `.gitignore` | — |
-| [ ] | 1 | 2022-06-18 | devbox@8ea4b82 | `svgdecode` TODO stub (decode embedded SVG). Note it, no code | — |
-| [ ] | 2 | — | unpaired | render: parse SVG into the model and draw the supported elements (line, polyline, rect with rx/ry, circle, text) as macroquad shapes. The browser did this for free, so no historical commit matches it | — |
+| [x] | 0 | — | scaffold | Cargo, macroquad, quick-xml, `build.sh`/`test.sh`/`orc-env.sh`/`mutate.sh`, empty window, `gram <path>` argument, `.gitignore` | — |
+| [x] | 1 | 2022-06-18 | devbox@8ea4b82 | `svgdecode` TODO stub (decode embedded SVG). Note it, no code (noted in the steps 0–2 commit) | — |
+| [x] | 2 | — | unpaired | render: `gram <file.svg>` parses the SVG into the model and draws the supported elements (line, polyline, rect with rx/ry, circle, text; fill, stroke, dasharray, font-size, text-decoration) as macroquad shapes. The browser did this for free, so no historical commit matches it. Beyond the browser: an infinite canvas (pan, cursor-anchored zoom, fit), a multi-level adaptive grid and an R-tree (`rstar`) for culling | — |
 | [ ] | 3 | 2022-09-03 | devbox@c702432 | select by click (selection colors); node edit via the external editor; read-only full SVG pane | — |
 | [ ] | 4 | 2022-09-04 | devbox@8c8c666 | follow-ups | — |
 | [ ] | 5 | 2022-09-05 | devbox@ed1a227 | | 0, 1, 2 |
@@ -83,7 +85,7 @@ Record here any conflict between a later step and an earlier branch-only feature
 | [ ] | 12 | 2022-11-11 | devbox@c8a9616 | template (swim3) | — |
 | [ ] | 13 | 2022-11-12 | 56bb48b | copy into act.svg. Diff against step 12 and port only what changed | check 0–18 |
 | [ ] | 14 | 2022-11-13 | 254fa71 | README | — |
-| [ ] | 15 | 2022-11-17 | 2adf2a0, 9a5a1d4, 1f4f0e7, c912cfa, b5f2608 | CI: test runner and a GitHub workflow that runs `./test.sh` | 0, 2, 7, 18 |
+| [ ] | 15 | 2022-11-17 | 2adf2a0, 9a5a1d4, 1f4f0e7, c912cfa, b5f2608 | CI: test runner and a GitHub workflow that runs `./test.sh`. The workflow already exists (added early, see the decisions log), so this step only ports what else these commits changed, such as the force-fail test and its removal | 0, 2, 7, 18 |
 | [ ] | 16 | 2022-11-19 | e1fd4b7, df9a465 | XML buttons: open, copy, save to file | 19, 20 |
 | [ ] | 17 | 2022-11-20 | 4353b84 | node management: rect select, drag | 21–24 |
 | [ ] | 18 | 2022-11-24 | ce35ebe, de3c340 | node management, XML buttons | 21–27 |
