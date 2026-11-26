@@ -14,14 +14,15 @@
 #       the folders holding them, folders before files, by name ignoring
 #       case, each folder's contents right after it. Hidden entries, folders
 #       with no .svg inside and symlinked folders are left out.
-#   tree-click.sh  binds Entries, Collapsed, Scroll and Clicked. Over the
-#       panel, the wheel scrolls (clamped to the rows) and a left click
-#       folds or unfolds a folder, or reports a file.
+#   tree-click.sh  binds Entries, Collapsed, Scroll, Selected, Clicked and
+#       EditFile. Over the panel, the wheel scrolls (clamped to the rows) and
+#       a left click folds or unfolds a folder, reports a file, or, on the
+#       open page's edit button, reports EditFile.
 #   tree-draw.sh  binds Entries, Collapsed, Scroll, Pages, Selected and
 #       Font. One row per shown entry, indented by depth: "+ name" or
 #       "- name" for folders, a file's name with "*" when its page changed,
-#       ERROR_TEXT when its page failed, the selected row highlighted, long
-#       names cut short with "…".
+#       ERROR_TEXT when its page failed, the selected row highlighted with an
+#       "edit" button at its end, long names cut short with "…".
 #   page-error.sh  binds Title and Error. Says the page can't be opened,
 #       and why.
 
@@ -41,6 +42,14 @@ export ${v}click_Entries=entries
 export ${v}click_Collapsed=collapsed
 export ${v}click_Scroll=scroll
 export ${v}click_Clicked=clicked
+export ${v}click_Selected=None
+export ${v}click_EditFile=edit_file
+export ${v}clicksel_Entries=entries
+export ${v}clicksel_Collapsed=collapsed
+export ${v}clicksel_Scroll=scroll
+export ${v}clicksel_Selected=selected
+export ${v}clicksel_Clicked=clicked
+export ${v}clicksel_EditFile=edit_file
 export ${v}tree_Entries=entries
 export ${v}tree_Collapsed=collapsed
 export ${v}tree_Scroll=scroll
@@ -161,6 +170,8 @@ fn draw_rectangle(x: f32, y: f32, w: f32, h: f32, color: Color) {
 
 fn draw_line(_x1: f32, _y1: f32, _x2: f32, _y2: f32, _thickness: f32, _color: Color) {}
 
+fn draw_rectangle_lines(_x: f32, _y: f32, _w: f32, _h: f32, _thickness: f32, _color: Color) {}
+
 fn draw_text_ex(text: &str, x: f32, y: f32, params: TextParams) {
     DRAWN.with(|list| {
         list.borrow_mut().push(Drawn::Text { text: text.to_string(), x, y, color: params.color })
@@ -209,6 +220,7 @@ fn page(path: &str, dirty: bool, error: Option<&str>) -> Page {
         error: error.map(|err| err.to_string()),
         dirty,
         fitted: false,
+        selection: Selection::default(),
     }
 }
 
@@ -411,6 +423,32 @@ fn the_wheel_scrolls_the_tree_within_its_rows() {
     assert_eq!(scroll, 0.0);
 }
 
+#[test]
+fn the_open_pages_edit_button_reports_an_edit_not_an_open() {
+    let entries = tree(&[("a.svg", 0, false), ("b.svg", 0, false)]);
+    let mut collapsed: Vec<PathBuf> = vec![];
+    let mut scroll = 0.0f32;
+    let selected: Option<&Path> = Some(Path::new("/t/b.svg"));
+
+    // the button at the end of the open page's row
+    set_input(Input { mouse: (TREE_W - 10.0, row_at(1).1), pressed: true, ..Default::default() });
+    ` ./tree-click.sh ${v}clicksel_ `
+    assert!(edit_file);
+    assert_eq!(clicked, None);
+
+    // the same place on another row opens that file
+    set_input(Input { mouse: (TREE_W - 10.0, row_at(0).1), pressed: true, ..Default::default() });
+    ` ./tree-click.sh ${v}clicksel_ `
+    assert!(!edit_file);
+    assert_eq!(clicked, Some(PathBuf::from("/t/a.svg")));
+
+    // the open page's name, left of the button, opens it as before
+    set_input(Input { mouse: row_at(1), pressed: true, ..Default::default() });
+    ` ./tree-click.sh ${v}clicksel_ `
+    assert!(!edit_file);
+    assert_eq!(clicked, Some(PathBuf::from("/t/b.svg")));
+}
+
 // ---- drawing the tree ----
 
 #[test]
@@ -437,6 +475,7 @@ fn rows_are_indented_with_fold_marks_and_the_open_page_highlighted() {
             ("a.svg", TREE_PAD + TREE_INDENT),
             ("+ old", TREE_PAD),
             ("b.svg", TREE_PAD),
+            (TREE_BUTTON_LABEL, TREE_W - TREE_BUTTON_W + 7.0),
         ]
     );
     // b.svg is the fourth row shown

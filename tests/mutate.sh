@@ -46,25 +46,32 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 # ---- not implemented: each snippet the tests inline ----
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
-    editor-pick editor-open editor-poll file-watch; do
+    editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
+    node-apply map banner; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
 # ---- loading ----
 mutant bug "entities are dropped from text" src/svg-load.sh \
     "/\.text\.push('&');/d"
-mutant bug "text boxes ignore the character widths" src/svg-load.sh \
+mutant bug "text boxes ignore the character widths" src/mouse-rects.sh \
     "s/'?' | 'A'..='B' | 'M'..='O' | 'R' | 'T' | 'V' => 11.0,/'?' | 'A'..='B' | 'M'..='O' | 'R' | 'T' | 'V' => 8.0,/"
-mutant bug "text boxes aren't truncated like parseInt" src/svg-load.sh \
+mutant bug "text boxes aren't truncated like parseInt" src/mouse-rects.sh \
     's/min_x = x\.trunc() - 3\.0;/min_x = x - 3.0;/'
-mutant bug "a rect box ignores its stroke" src/svg-load.sh \
+mutant bug "a rect box ignores its stroke" src/mouse-rects.sh \
     's/min_x = x - stroke_w;/min_x = x;/'
-mutant bug "numbers with units are read as 0" src/svg-load.sh \
-    's/nums\.push(text\[\.\.number_end\]\.parse::<f32>()\.unwrap_or(0\.0));/nums.push(text.trim().parse::<f32>().unwrap_or(0.0));/'
-mutant bug "an exponent is ignored" src/svg-load.sh \
+mutant bug "numbers with units are read as 0" src/models.sh \
+    's/    text\[\.\.number_end\]\.parse::<f64>()\.unwrap_or(0\.0)/    text.trim().parse::<f64>().unwrap_or(0.0)/'
+mutant bug "an exponent is ignored" src/models.sh \
     's/number_end = exp_end;/exp_end += 0;/'
 mutant bug "the root's attributes are lost" src/svg-load.sh \
     '/\.root_attrs = attrs;/d'
+mutant bug "a node's parent is lost" src/svg-load.sh \
+    's/parent: \${v}open\.last()\.copied()\.flatten(),/parent: None,/'
+mutant bug "an end tag doesn't close its element" src/svg-load.sh \
+    '/\${v}open\.pop();/d'
+mutant bug "elements with no shape are clickable" src/spatial-index.sh \
+    's/if SHAPE_TAGS\.contains(\&\${v}node\.tag\.as_str()) {/if true {/'
 mutant bug "the index skips the first node" src/spatial-index.sh \
     's/\.nodes\.iter()\.enumerate()/.nodes.iter().enumerate().skip(1)/'
 
@@ -160,7 +167,9 @@ mutant bug "the wheel scrolls the tree from the canvas" src/tree-click.sh \
 mutant bug "a folded folder's rows are drawn" src/tree-draw.sh \
     's/if !hidden \&\& folded {/if false {/'
 mutant bug "the open page isn't highlighted" src/tree-draw.sh \
-    's/if \${!selected} == Some(entry\.path\.as_path()) {/if false {/'
+    's/let is_selected = \${!selected} == Some(entry\.path\.as_path());/let is_selected = false;/'
+mutant bug "the edit button opens the file instead" src/tree-click.sh \
+    's/        } else if on_button {/        } else if false {/'
 mutant bug "a changed page has no star" src/tree-draw.sh \
     's/} else if page\.is_some_and(|page| page\.dirty) {/} else if false {/'
 mutant bug "a failed page isn't red" src/tree-draw.sh \
@@ -187,6 +196,36 @@ mutant bug "the reload misses a length-only change" src/file-watch.sh \
     's/\.map(|time| (time, meta\.len()))/.map(|time| (time, 0))/'
 mutant bug "the watch never takes a new stamp" src/file-watch.sh \
     '/\${!stamp} = \${v}now;/d'
+
+# ---- selecting and editing (step 3) ----
+mutant bug "a click misses the box's edge" src/hit-test.sh \
+    's/\.locate_all_at_point(\[\${!pos}\.x, \${!pos}\.y\])/.locate_all_at_point([${!pos}.x + 0.5, ${!pos}.y + 0.5])/'
+mutant bug "overlaps give the last node, not the first" src/hit-test.sh \
+    's/        \.min();/        .max();/'
+mutant bug "a second click doesn't deselect" src/select.sh \
+    's/\${!selection}\.ids\.retain(|other| \*other != id);/let _ = id;/'
+mutant bug "a new selection isn't the one being edited" src/select.sh \
+    's/\${!selection}\.ids\.push(id);/${!selection}.ids.insert(0, id);/'
+mutant bug "the selection colors are swapped" src/draw-doc.sh \
+    's/stroke = Some(if last { EDIT_COLOR } else { SEL_COLOR });/stroke = Some(if last { SEL_COLOR } else { EDIT_COLOR });/'
+mutant bug "a node with no stroke is recolored" src/draw-doc.sh \
+    's/^            \&\& has_stroke$/            \&\& (has_stroke || true)/'
+mutant bug "node XML loses attribute order" src/node-xml.sh \
+    's/for (name, value) in \${!node}\.attrs\.iter() {/for (name, value) in ${!node}.attrs.iter().rev() {/'
+mutant bug "an edit removes the attributes it leaves out" src/node-apply.sh \
+    's/\${!target}\.tag = \${!edited}\.tag\.clone();/${!target}.tag = ${!edited}.tag.clone(); ${!target}.attrs.clear();/'
+mutant bug "an edit keeps the old tag" src/node-apply.sh \
+    '/\${!target}\.tag = \${!edited}\.tag\.clone();/d'
+mutant bug "map ignores y" src/map.sh \
+    's/let \${v}dy = \${v}spots\[1\]\.1 - \${v}spots\[0\]\.1;/let ${v}dy = 0.0f64;/'
+mutant bug "map skips polylines" src/map.sh \
+    's/if maps \&\& is_polyline \&\& name == "points" {/if false {/'
+mutant bug "map ignores stroke-width" src/map.sh \
+    's/if maps \&\& name == "stroke-width" {/if false {/'
+mutant bug "map moves nodes of the same kind" src/map.sh \
+    's/            \&\& \${!after}\.tag != dest\.tag;/            ;/'
+mutant bug "a circle's anchor is read as x, y" src/map.sh \
+    's/let (x_name, y_name) = if node\.tag == "circle" { ("cx", "cy") } else { ("x", "y") };/let (x_name, y_name) = ("x", "y");/'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {

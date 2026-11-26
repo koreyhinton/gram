@@ -51,10 +51,66 @@ const TREE_INDENT: f32 = 14.0;
 const TREE_PAD: f32 = 8.0;
 const TREE_TEXT_PX: u16 = 15;
 const TREE_SCROLL_ROWS: f32 = 3.0; // rows per wheel notch
+// the open page's row ends in an "edit" button, which opens the page's file
+// in the editor
+const TREE_BUTTON_W: f32 = 40.0;
+const TREE_BUTTON_LABEL: &str = "edit";
 const TREE_BG: Color = Color::new(0.97, 0.97, 0.98, 1.0);
 const TREE_BORDER: Color = Color::new(0.75, 0.77, 0.81, 1.0);
 const TREE_TEXT: Color = Color::new(0.15, 0.16, 0.18, 1.0);
 const TREE_SELECTED: Color = Color::new(0.80, 0.86, 0.96, 1.0);
+const BANNER_BG: Color = Color::new(0.16, 0.18, 0.22, 0.92);
+const BANNER_TEXT: Color = Color::new(1.0, 1.0, 1.0, 1.0);
+
+// selection is shown by recoloring a node's stroke: the node being edited
+// (the last one selected) in EDIT_COLOR (#CAFFB5), the others in SEL_COLOR
+// (#C0D6FC). Only the drawing is recolored; the node keeps its color.
+const SEL_COLOR: Color = Color::new(192.0 / 255.0, 214.0 / 255.0, 252.0 / 255.0, 1.0);
+const EDIT_COLOR: Color = Color::new(202.0 / 255.0, 255.0 / 255.0, 181.0 / 255.0, 1.0);
+
+// the elements gram draws and can click; anything else (g, defs, title, ...)
+// has no click box and stays out of the R-tree
+const SHAPE_TAGS: [&str; 5] = ["line", "polyline", "rect", "circle", "text"];
+
+// a number as the old web app read it (JS parseFloat): the longest number at
+// the start, after any whitespace, so "10px" is 10 and "1.5e1" is 15. A value
+// with no number at the start is 0 (JS gave NaN, or -999 for a missing
+// attribute; see PLAN.md's decisions log).
+fn js_parse_float(text: &str) -> f64 {
+    let text = text.trim_start();
+    let bytes = text.as_bytes();
+    let mut end = 0usize;
+    let mut number_end = 0usize;
+    let mut has_digits = false;
+    if end < bytes.len() && (bytes[end] == b'+' || bytes[end] == b'-') {
+        end += 1;
+    }
+    while end < bytes.len() && bytes[end].is_ascii_digit() {
+        end += 1;
+        has_digits = true;
+        number_end = end;
+    }
+    if end < bytes.len() && bytes[end] == b'.' {
+        end += 1;
+        while end < bytes.len() && bytes[end].is_ascii_digit() {
+            end += 1;
+            has_digits = true;
+            number_end = end;
+        }
+    }
+    // an exponent only counts with digits after it ("1e" is 1)
+    if has_digits && end < bytes.len() && (bytes[end] == b'e' || bytes[end] == b'E') {
+        let mut exp_end = end + 1;
+        if exp_end < bytes.len() && (bytes[exp_end] == b'+' || bytes[exp_end] == b'-') {
+            exp_end += 1;
+        }
+        while exp_end < bytes.len() && bytes[exp_end].is_ascii_digit() {
+            exp_end += 1;
+            number_end = exp_end;
+        }
+    }
+    text[..number_end].parse::<f64>().unwrap_or(0.0)
+}
 
 // svg color keywords the diagrams use, plus the common ones
 const NAMED_COLORS: [(&str, [u8; 3]); 28] = [
@@ -91,13 +147,53 @@ const NAMED_COLORS: [(&str, [u8; 3]); 28] = [
 // One svg element. Attributes keep their file order and their raw (still
 // escaped) values, and text keeps its raw contents, so a save can write the
 // element back as it was read. bounds is the click box, by the old web app's
-// rules (setMouseRects).
+// rules (setMouseRects). parent is the enclosing element's index in
+// Doc.nodes (a <g>), or None for an element right under the root <svg>.
 #[derive(Clone, Debug, PartialEq)]
 struct Node {
     tag: String,
     attrs: Vec<(String, String)>,
     text: String,
     bounds: Rect,
+    parent: Option<usize>,
+}
+
+// the selected nodes, by index in Doc.nodes, in the order they were picked.
+// The last one is the node being edited (shown in EDIT_COLOR).
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Selection {
+    ids: Vec<usize>,
+}
+
+// what an open editor is editing
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum EditKind {
+    // the selected node, as XML in a temp file
+    Node,
+    // the page's own file
+    File,
+}
+
+// an editor gram started, checked each frame
+struct EditJob {
+    kind: EditKind,
+    // the page being edited (index in Workspace.pages)
+    page: usize,
+    // the file in the editor: the temp node file, or the page's file
+    path: std::path::PathBuf,
+    // the editor while it runs
+    child: Option<std::process::Child>,
+    // a node edit: the XML handed to the editor, and the node as it was
+    written: String,
+    before: Option<Node>,
+    // a file edit: the file's modified time and length when last seen
+    stamp: Option<(std::time::SystemTime, u64)>,
+    // why the editor or its result was refused, shown in the banner
+    error: Option<String>,
+    // when the editor started (get_time): a file edit whose editor returns
+    // at once (xdg-open, emacsclient -n) handed the file off, so gram keeps
+    // watching it
+    started: f64,
 }
 
 // one svg file: the root <svg> element's attributes, then its elements in
@@ -141,6 +237,7 @@ struct Page {
     dirty: bool,
     // fitted to the window once it had its real size
     fitted: bool,
+    selection: Selection,
 }
 
 // the folder gram opened: its tree, which folders are folded, how far the
@@ -152,6 +249,10 @@ struct Workspace {
     scroll: f32,
     pages: Vec<Page>,
     open: Option<usize>,
+    // the draw mode, keys 0-9 (0 is select; the others come with later steps)
+    mode: u8,
+    // the editor gram started, if one is open
+    edit: Option<EditJob>,
 }
 
 // a node's bounds in the R-tree; id is its index in Doc.nodes

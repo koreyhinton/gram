@@ -8,6 +8,9 @@
 #   input:  Index   rstar::RTree<SpatialEntry> (from spatial-index)
 #   input:  Canvas  Canvas
 #   input:  Font    Option<&Font>, None for macroquad's default font
+#   input:  Selection  Selection; a selected node's stroke is drawn in
+#                   EDIT_COLOR (the last selected) or SEL_COLOR, when it has a
+#                   stroke attribute (the old setcolor changed only that)
 #
 # Supports line, polyline, rect (rx/ry), circle and text: fill and stroke
 # (svg defaults: fill black, stroke none), stroke-width, stroke-dasharray,
@@ -16,7 +19,7 @@
 
 v=$1
 # maps
-. ${NSMAP}/bind ${v} Doc Index Canvas Font
+. ${NSMAP}/bind ${v} Doc Index Canvas Font Selection
 
 cat << EOF
 
@@ -51,8 +54,12 @@ cat << EOF
         let (mut cx, mut cy, mut r) = (0.0f32, 0.0f32, 0.0f32);
         let (mut x1, mut y1, mut x2, mut y2) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
         let mut points: Vec<f32> = vec![];
+        let mut has_stroke = false;
         for (name, value) in node.attrs.iter() {
             let num = value.trim().trim_end_matches("px").parse::<f32>().ok();
+            if name == "stroke" {
+                has_stroke = true;
+            }
             match name.as_str() {
                 "fill" | "stroke" => {
                     // a color: none, transparent, #rgb, #rrggbb or a keyword
@@ -129,6 +136,15 @@ cat << EOF
                 }
                 _ => {}
             }
+        }
+        // selection: the node being edited (the last selected) in
+        // EDIT_COLOR, the others in SEL_COLOR, on the stroke it has
+        let picked = ${!selection}.ids.iter().position(|id| *id == ${v}id);
+        if let Some(place) = picked
+            && has_stroke
+        {
+            let last = place + 1 == ${!selection}.ids.len();
+            stroke = Some(if last { EDIT_COLOR } else { SEL_COLOR });
         }
         // font-size: px (with or without the unit), or relative to the
         // default as browsers scale it (1.2 per step)

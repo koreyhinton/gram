@@ -41,7 +41,8 @@ cargo run -- docs/concave-fill.svg   # a file: its folder, with it open
 
 - A node is `{ tag, attrs: Vec<(String, String)>, text, bounds }`. Keep attributes as an ordered list, not typed fields, so unknown attributes and the original order survive a save.
 - Parse with `quick-xml`. Serialization is hand-written, ported from the JS `nd2xml`/`nds2xml`.
-- Selection is shown by recoloring (edit color `#CAFFB5` for the last selected node, `#C0D6FC` for the others), with the original color cached. Anything written to disk or handed to the editor uses the cached color, never the selection color.
+- Selection is shown by recoloring (edit color `#CAFFB5` for the last selected node, `#C0D6FC` for the others). Only the drawing is recolored (`draw-doc.sh`); the node keeps its own color, so anything written to disk or handed to the editor has the real color, never the selection color.
+- A node's `parent` is the index of its enclosing element (a `<g>`), so groups can be selected later. Elements with no shape (`<g>`, `<defs>`, `<title>`) stay out of the R-tree and take no clicks.
 - Saves are atomic: write `<file>.tmp`, then rename it over the file.
 - The document is a 750×750 page sheet at world (0, 0) on an infinite canvas (pan, zoom, adaptive grid). An R-tree (`rstar`) indexes node bounds; drawing culls through it but keeps document order. Text hit boxes use the JS per-character widths (`StartEndFrame.FromText`) until `PLAN.md` says otherwise, because tests depend on them.
 
@@ -50,9 +51,10 @@ cargo run -- docs/concave-fill.svg   # a file: its folder, with it open
 The app has no text-editing widgets. Text editing goes to the user's editor, the way git does.
 
 - Pick the editor from `$GRAM_EDITOR`, then `$VISUAL`, then `$EDITOR`, then `xdg-open`. `emacsclient` with a running daemon is the fast path.
-- Node edit: write the node's XML to a temp `node.svg` and spawn the editor (with `+line:col` when the cursor matters, such as a new text node's `?`). Never block the frame loop: check `try_wait()` each frame. While the editor is open, lock the canvas and show a banner. On exit, re-parse. If that fails, show the error and offer to reopen; if it succeeds, apply the edit to the node and map it onto the other selected nodes.
-- Full SVG: shown read-only in the app. A key opens the page file itself in the editor, and the app reloads it when it changes on disk.
-- Tests set `GRAM_EDITOR` to a script (e.g. `sed -i`) so editor round-trips run without a person.
+- Node edit: **Enter** writes the last selected node's XML to a temp `node.svg` and spawns the editor (with `+line:col` when the cursor matters, such as a new text node's `?`). Never block the frame loop: check `try_wait()` each frame (`editor-poll.sh`). While the editor is open, lock the canvas (no select, keys or edits; pan and zoom still work) and show a banner. On exit: unchanged text does nothing. Changed text must parse as exactly one element; then apply it to the node (`node-apply.sh`: update or add attributes, never remove), map it onto the other selected nodes (`map.sh`), deselect all and mark the page dirty. If it fails, the banner shows why: **R** reopens the editor, **Esc** drops the edit.
+- Full SVG: no in-app pane. The **edit** button at the end of the open page's tree row opens the page file itself in the editor. gram reloads the page on each save (`file-watch.sh`: modified time or length) and stops when the editor exits. An editor that returns at once (`xdg-open`, `emacsclient -n`) handed the file off, so gram keeps watching until **Esc**. A page with unsaved changes warns first: the file's text replaces them, so a second click within 5 seconds opens it.
+- Selection: a left click on the canvas selects or deselects the node under it; the last selected is the one being edited. **Esc** deselects all. **0–9** set the mode, shown in the HUD.
+- Tests set `GRAM_EDITOR` to a script (e.g. `sed -i`) so editor round-trips run without a person, or pass the command straight to `editor-open.sh`.
 
 ## Folder tree
 
