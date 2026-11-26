@@ -62,7 +62,7 @@ Record here any conflict between a later step and an earlier branch-only feature
 
 - Steps 0–2 (pre-parity): the canvas goes beyond the browser with an infinite canvas, adaptive grid and R-tree. Hit-testing at step 3 should query the R-tree, then apply the JS ordering (`sortedSvgNodes`: text first, swimlanes and classes last).
 - Steps 0–2: CI comes before its paired step (15), as an agreed exception to pairing, because the pre-parity commit already has tests. `.github/workflows/rust.yml` mirrors everkeep's: it checks out gram and orc side by side (`../orc`), then runs `./test.sh` and `tests/mutate.sh`.
-- Steps 0–2: three samples (`diagrams/act (15).svg`, `act(1).svg`, `act(2).svg`) are malformed XML, with a whole `<svg>` pasted into a `fill` attribute. gram reports the parse error and doesn't open them, as a browser would. Worth finding the old-app bug that wrote them when a later step touches paste or attribute editing.
+- Steps 0–2: three samples (`diagrams/act (15).svg`, `act(1).svg`, `act(2).svg`) are truncated: each stops right after the first `stroke="` or `fill="` whose value was a hex color. The old "save to file" button (`js/xml-buttons.js`, step 16) built `'data:image/svg+xml,' + encodeURI(xml)`, and `encodeURI` leaves `#` alone, so the browser took the first `#` as the start of a URL fragment and saved only what came before it. The rest is lost. gram reports the parse error and doesn't open them, as a browser would. At step 16, gram writes the file directly, so the bug doesn't carry over; note it in that step's commit body.
 
 ## Steps
 

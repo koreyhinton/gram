@@ -190,16 +190,90 @@ cat << EOF
             _ => {}
         }
 
-        // fill: a fan of triangles from the outline's center (svg fills an
-        // open polyline as if it were closed)
+        // fill (svg fills an open polyline as if it were closed). rects and
+        // circles are convex, so a fan from the first point covers them. A
+        // polyline can be concave (a notched arrowhead, an L), so it's cut
+        // into triangles by ear clipping: keep cutting off a corner that
+        // turns the polygon's way and holds no other point. A polyline that
+        // crosses itself may run out of ears; the rest is fanned.
         if let Some(color) = fill
             && node.tag != "line"
             && outline.len() >= 3
         {
-            let center = outline.iter().copied().fold(Vec2::ZERO, |sum, point| sum + point)
-                / outline.len() as f32;
-            for i in 0..outline.len() {
-                draw_triangle(center, outline[i], outline[(i + 1) % outline.len()], color);
+            if node.tag != "polyline" {
+                for i in 1..outline.len() - 1 {
+                    draw_triangle(outline[0], outline[i], outline[i + 1], color);
+                }
+            } else {
+                // drop repeated points, including a last point that closes
+                // back onto the first
+                let mut poly: Vec<Vec2> = vec![];
+                for point in outline.iter().copied() {
+                    if poly.last().is_none_or(|last| last.distance(point) > 1e-4) {
+                        poly.push(point);
+                    }
+                }
+                while poly.len() > 1 && poly[0].distance(poly[poly.len() - 1]) <= 1e-4 {
+                    poly.pop();
+                }
+                // which way the polygon winds (shoelace); 0 means no area
+                let mut twice_area = 0.0f32;
+                for i in 0..poly.len() {
+                    twice_area += poly[i].perp_dot(poly[(i + 1) % poly.len()]);
+                }
+                let turn = twice_area.signum();
+                let mut left: Vec<usize> = (0..poly.len()).collect();
+                while left.len() >= 3 && twice_area.abs() > 1e-4 {
+                    let count = left.len();
+                    let mut cut: Option<(usize, bool)> = None;
+                    for i in 0..count {
+                        let a = poly[left[(i + count - 1) % count]];
+                        let b = poly[left[i]];
+                        let c = poly[left[(i + 1) % count]];
+                        let corner = (b - a).perp_dot(c - b) * turn;
+                        if corner.abs() <= 1e-4 {
+                            // a straight run (or a spike back on itself): drop
+                            // the point, there's no area to draw
+                            cut = Some((i, false));
+                            break;
+                        }
+                        if corner < 0.0 {
+                            continue;
+                        }
+                        let holds_point = left.iter().any(|&other| {
+                            let p = poly[other];
+                            p.distance(a) > 1e-4
+                                && p.distance(b) > 1e-4
+                                && p.distance(c) > 1e-4
+                                && (b - a).perp_dot(p - a) * turn >= 0.0
+                                && (c - b).perp_dot(p - b) * turn >= 0.0
+                                && (a - c).perp_dot(p - c) * turn >= 0.0
+                        });
+                        if !holds_point {
+                            cut = Some((i, true));
+                            break;
+                        }
+                    }
+                    match cut {
+                        Some((i, draw)) => {
+                            if draw {
+                                draw_triangle(
+                                    poly[left[(i + count - 1) % count]],
+                                    poly[left[i]],
+                                    poly[left[(i + 1) % count]],
+                                    color,
+                                );
+                            }
+                            left.remove(i);
+                        }
+                        None => {
+                            for i in 1..count - 1 {
+                                draw_triangle(poly[left[0]], poly[left[i]], poly[left[i + 1]], color);
+                            }
+                            left.clear();
+                        }
+                    }
+                }
             }
         }
 

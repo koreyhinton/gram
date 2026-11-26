@@ -48,7 +48,7 @@ cat << EOF
 #[derive(Debug, Clone, PartialEq)]
 enum Drawn {
     Line { from: Vec2, to: Vec2, thickness: f32, color: Color },
-    Triangle { color: Color },
+    Triangle { corners: [Vec2; 3], color: Color },
     // size is the text's size in world units (font_size * font_scale)
     // px is the size the glyphs were rasterized at
     Text { text: String, x: f32, y: f32, size: f32, px: u16, color: Color },
@@ -78,7 +78,7 @@ fn lines(list: &[Drawn]) -> Vec<(Vec2, Vec2)> {
 fn triangles(list: &[Drawn]) -> Vec<Color> {
     list.iter()
         .filter_map(|drawn| match drawn {
-            Drawn::Triangle { color } => Some(*color),
+            Drawn::Triangle { color, .. } => Some(*color),
             _ => None,
         })
         .collect()
@@ -88,8 +88,18 @@ fn draw_line(x1: f32, y1: f32, x2: f32, y2: f32, thickness: f32, color: Color) {
     record(Drawn::Line { from: vec2(x1, y1), to: vec2(x2, y2), thickness, color });
 }
 
-fn draw_triangle(_v1: Vec2, _v2: Vec2, _v3: Vec2, color: Color) {
-    record(Drawn::Triangle { color });
+fn draw_triangle(v1: Vec2, v2: Vec2, v3: Vec2, color: Color) {
+    record(Drawn::Triangle { corners: [v1, v2, v3], color });
+}
+
+// the filled triangles' corners
+fn fill_triangles(list: &[Drawn]) -> Vec<[Vec2; 3]> {
+    list.iter()
+        .filter_map(|drawn| match drawn {
+            Drawn::Triangle { corners, .. } => Some(*corners),
+            _ => None,
+        })
+        .collect()
 }
 
 fn draw_text_ex(text: &str, x: f32, y: f32, params: TextParams) {
@@ -179,6 +189,72 @@ fn fill_defaults_to_black_and_stroke_to_none() {
     assert!(!triangles(&list).is_empty());
     assert!(triangles(&list).iter().all(|color| *color == BLACK));
     assert_eq!(lines(&list), vec![]);
+}
+
+#[test]
+fn a_concave_polyline_fills_only_its_inside() {
+    // an L starting at a point that a fan would spill from, across the empty
+    // corner, whose corners' average (357, 187) is also in that corner
+    let svg_text = r#"<svg><polyline points="460 170 340 170 340 290 300 290 300 130 460 130 460 170" fill="lightblue"/></svg>"#;
+    let canvas = canvas_at(1.0);
+
+    ` ./svg-load.sh ${v}load_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}draw_ `
+
+    let tris = fill_triangles(&drawn());
+    // the triangles add up to the L's area, so none overlap or spill out
+    let area: f32 = tris
+        .iter()
+        .map(|[a, b, c]| ((*b - *a).perp_dot(*c - *a) / 2.0).abs())
+        .sum();
+    assert!((area - (160.0 * 40.0 + 40.0 * 120.0)).abs() < 1e-2, "area {}", area);
+    // and no triangle's center is in the empty corner
+    for [a, b, c] in tris {
+        let center = (a + b + c) / 3.0;
+        assert!(!(center.x > 340.0 && center.y > 170.0), "spills at {:?}", center);
+    }
+}
+
+#[test]
+fn a_notched_arrowhead_leaves_its_notch_empty() {
+    let svg_text = r#"<svg><polyline points="60 130 160 200 60 270 190 200 60 130" fill="black"/></svg>"#;
+    let canvas = canvas_at(1.0);
+
+    ` ./svg-load.sh ${v}load_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}draw_ `
+
+    let tris = fill_triangles(&drawn());
+    // two barbs: (60,130)-(160,200)-(190,200) and its mirror, 1050 each
+    let area: f32 = tris
+        .iter()
+        .map(|[a, b, c]| ((*b - *a).perp_dot(*c - *a) / 2.0).abs())
+        .sum();
+    assert!((area - 2100.0).abs() < 1e-2, "area {}", area);
+}
+
+#[test]
+fn a_u_bracket_leaves_its_gap_empty() {
+    // the corner at (680, 130) turns the right way but holds (640, 170), so
+    // cutting it off would fill the gap
+    let svg_text = r#"<svg><polyline points="540 130 680 130 680 290 540 290 540 250 640 250 640 170 540 170 540 130" fill="black"/></svg>"#;
+    let canvas = canvas_at(1.0);
+
+    ` ./svg-load.sh ${v}load_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}draw_ `
+
+    let tris = fill_triangles(&drawn());
+    let area: f32 = tris
+        .iter()
+        .map(|[a, b, c]| ((*b - *a).perp_dot(*c - *a) / 2.0).abs())
+        .sum();
+    // the 140x160 box less the 100x80 gap
+    assert!((area - (140.0 * 160.0 - 100.0 * 80.0)).abs() < 1e-2, "area {}", area);
 }
 
 #[test]

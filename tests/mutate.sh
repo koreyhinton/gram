@@ -88,6 +88,10 @@ mutant bug "no axes" src/draw-grid.sh \
     's/let is_axis = axes \&\& /let is_axis = false \&\& /'
 
 # ---- drawing ----
+mutant bug "polylines fan like convex shapes" src/draw-doc.sh \
+    's/if node\.tag != "polyline" {/if true {/'
+mutant bug "an ear may hold another point" src/draw-doc.sh \
+    's/if !holds_point {/if true {/'
 mutant bug "transparent fills are drawn black" src/draw-doc.sh \
     's/paint = Some(None);/paint = None;/'
 mutant bug "#rrggbb colors are ignored" src/draw-doc.sh \
