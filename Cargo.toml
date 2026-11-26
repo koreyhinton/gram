@@ -3,6 +3,8 @@ name = "gram"
 version = "0.1.0"
 edition = "2024"
 license = "AGPL-3.0-only"
+# if-let chains (`if let ... && ...`) need 1.88 with edition 2024
+rust-version = "1.88"
 
 [dependencies]
 macroquad = "0.4.16"
