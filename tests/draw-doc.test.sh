@@ -260,6 +260,30 @@ fn a_selected_shape_whose_stroke_comes_from_its_group_is_recolored() {
 }
 
 #[test]
+fn a_selected_text_in_a_stroked_group_shows_on_its_own_fill() {
+    // the label in docs/groups.svg: its <g> passes down stroke="red", but
+    // the text's own fill comes first, as setcolor saw only the node's own
+    let svg_text = r#"<svg><g stroke="red"><text x="10" y="20" fill="black" stroke="none">grouped</text></g></svg>"#;
+    let canvas = canvas_at(1.0);
+    let selection = Selection { ids: vec![1], group: None };
+
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}dsel_ `
+
+    let colors: Vec<Color> = drawn()
+        .iter()
+        .filter_map(|drawn| match drawn {
+            Drawn::Text { color, .. } => Some(*color),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(colors, vec![EDIT_COLOR]);
+}
+
+#[test]
 fn a_transparent_fill_draws_only_the_outline() {
     let svg_text = r#"<svg><rect x="10" y="10" width="100" height="50" stroke="black" fill="transparent" stroke-width="1"/></svg>"#;
     let canvas = canvas_at(1.0);

@@ -209,7 +209,7 @@ mutant bug "a new selection isn't the one being edited" src/select.sh \
 mutant bug "the selection colors are swapped" src/draw-doc.sh \
     's/let shown = Some(if last { EDIT_COLOR } else { SEL_COLOR });/let shown = Some(if last { SEL_COLOR } else { EDIT_COLOR });/'
 mutant bug "a node with no stroke is recolored" src/draw-doc.sh \
-    's/let mut color_attr: Option<\&str> = None;/let mut color_attr: Option<\&str> = Some("stroke");/'
+    's/let mut inherited_color_attr: Option<\&str> = None;/let mut inherited_color_attr: Option<\&str> = Some("stroke");/'
 mutant bug "node XML loses attribute order" src/node-xml.sh \
     's/for (name, value) in \${!node}\.attrs\.iter() {/for (name, value) in ${!node}.attrs.iter().rev() {/'
 mutant bug "an edit removes the attributes it leaves out" src/node-apply.sh \
@@ -278,6 +278,8 @@ mutant bug "groups pass down no styles" src/draw-doc.sh \
     's/if INHERITED_ATTRS\.contains(\&name\.as_str()) {/if false {/'
 mutant bug "a group's styles beat the node's own" src/draw-doc.sh \
     's/        for (name, value) in node\.attrs\.iter() {$/        for (name, value) in node.attrs.iter().filter(|_| false) {/'
+mutant bug "a group's stroke beats a text's own fill for the selection color" src/draw-doc.sh \
+    's/\&\& let Some(attr) = own_color_attr\.or(inherited_color_attr)/\&\& let Some(attr) = inherited_color_attr.or(own_color_attr)/'
 mutant bug "transforms go unnoticed" src/transform-note.sh \
     's/let \${!note}: Option<String> = if \${v}transformed > 0 {/let ${!note}: Option<String> = if false {/'
 
