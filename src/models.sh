@@ -260,6 +260,35 @@ struct Workspace {
     edit: Option<EditJob>,
 }
 
+// a raw key event, as macroquad replays it to an input subscriber
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum KeyEvent {
+    Down { key: KeyCode, repeat: bool },
+    Up { key: KeyCode },
+}
+
+// collects a frame's raw key events (macroquad::input::utils
+// repeat_all_miniquad_input), for keys whose release can go missing (see
+// key-presses.sh)
+#[derive(Default)]
+struct KeyEvents {
+    events: Vec<KeyEvent>,
+}
+
+impl macroquad::miniquad::EventHandler for KeyEvents {
+    fn update(&mut self) {}
+
+    fn draw(&mut self) {}
+
+    fn key_down_event(&mut self, key: KeyCode, _mods: macroquad::miniquad::KeyMods, repeat: bool) {
+        self.events.push(KeyEvent::Down { key, repeat });
+    }
+
+    fn key_up_event(&mut self, key: KeyCode, _mods: macroquad::miniquad::KeyMods) {
+        self.events.push(KeyEvent::Up { key });
+    }
+}
+
 // a node's bounds in the R-tree; id is its index in Doc.nodes
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct SpatialEntry {

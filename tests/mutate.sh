@@ -47,7 +47,7 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
-    node-apply map banner mode-notice hud-hints; do
+    node-apply map banner mode-notice hud-hints key-presses; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -250,6 +250,14 @@ mutant bug "the hints name the first selected, not the one being edited" src/hud
     's/        \.last()$/        .first()/'
 mutant bug "the HUD leaves out the hints" src/draw-hud.sh \
     '/    draw_text(\${!hints}, /d'
+
+# ---- keys after the editor ----
+mutant bug "a key after a lost release stays a repeat" src/key-presses.sh \
+    's/if !repeat || after_lost_release {/if !repeat {/'
+mutant bug "holding a key repeats its press" src/key-presses.sh \
+    's/if !repeat || after_lost_release {/if true {/'
+mutant bug "a lost key stays lost" src/key-presses.sh \
+    '/^                \${!lost}\.retain(|held| \*held != key);$/d'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {

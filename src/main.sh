@@ -87,6 +87,9 @@ export ${v}tree_Selected=selected
 export ${v}tree_Font=font.as_ref\(\)
 export ${v}banner_Text=\&message
 export ${v}notice_Mode=ws.mode
+export ${v}keys_Events=key_events.events
+export ${v}keys_Lost=lost_releases
+export ${v}keys_Presses=presses
 export ${v}notice_Since=since
 
 cat << EOF
@@ -169,8 +172,20 @@ cat << EOF
         // when the mode was last picked: at the start, as the old onStart
         // picked mode 0, so its notice shows first
         let mut mode_picked_at = get_time();
+        // the raw key events, for keys whose release can go to the editor
+        let input_subscriber = macroquad::input::utils::register_input_subscriber();
+        let mut key_events = KeyEvents::default();
+        let mut lost_releases: Vec<KeyCode> = vec![];
 
         loop {
+            // this frame's presses of the keys that start or restart an
+            // editor (Enter, R): the editor takes the focus while the key is
+            // held, so its release can go missing
+            key_events.events.clear();
+            macroquad::input::utils::repeat_all_miniquad_input(&mut key_events, input_subscriber);
+
+            ` ./key-presses.sh ${v}keys_ `
+
             let open_path: Option<std::path::PathBuf> = ws.open.map(|i| ws.pages[i].path.clone());
             let editing = ws.edit.is_some();
 
@@ -320,7 +335,7 @@ cat << EOF
             }
 
             // R: a refused node edit goes back to the editor, as it was left
-            let reopen = is_key_pressed(KeyCode::R)
+            let reopen = presses.contains(&KeyCode::R)
                 && ws.edit.as_ref().is_some_and(|job| job.kind == EditKind::Node && job.child.is_none());
             if reopen && let Some(job) = ws.edit.as_mut() {
                 let path = job.path.clone();
@@ -331,6 +346,7 @@ cat << EOF
                 job.child = child;
                 job.error = open_error;
                 job.started = get_time();
+                lost_releases = get_keys_down().into_iter().collect();
             }
 
             // 0-9: the mode (only 0, select, does anything yet)
@@ -347,7 +363,7 @@ cat << EOF
 
             // Enter: the node being edited (the last selected) goes to the
             // editor as XML in a temp file
-            let enter = is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter);
+            let enter = presses.contains(&KeyCode::Enter) || presses.contains(&KeyCode::KpEnter);
             if enter
                 && !editing
                 && let Some(job_page) = ws.open
@@ -364,6 +380,7 @@ cat << EOF
                 ` ./editor-pick.sh ${v}pick_ `
                 ` ./editor-open.sh ${v}open_ `
 
+                lost_releases = get_keys_down().into_iter().collect();
                 ws.edit = Some(EditJob {
                     kind: EditKind::Node,
                     page: job_page,
@@ -394,6 +411,7 @@ cat << EOF
                     ` ./editor-pick.sh ${v}pick_ `
                     ` ./editor-open.sh ${v}open_ `
 
+                    lost_releases = get_keys_down().into_iter().collect();
                     let mut job = EditJob {
                         kind: EditKind::File,
                         page: job_page,
