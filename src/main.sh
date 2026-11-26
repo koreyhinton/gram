@@ -374,7 +374,10 @@ cat << EOF
                 ` ./node-xml.sh ${v}xml_ `
 
                 let dir = std::env::temp_dir().join(format!("gram-{}", std::process::id()));
-                let path = dir.join("node.svg");
+                // .xml, not .svg: one element isn't a whole svg, and editors
+                // that show .svg as a picture (emacs's image-mode) would show
+                // an empty box until switched to text
+                let path = dir.join("node.xml");
                 let written = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, &xml));
 
                 ` ./editor-pick.sh ${v}pick_ `

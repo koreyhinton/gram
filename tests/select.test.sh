@@ -400,7 +400,7 @@ fn a_node_edit_round_trip_moves_the_selection_together() {
     ` ./node-xml.sh ${v}xml_ `
     let dir = std::env::temp_dir().join(format!("gram-test-{}-node-edit", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("node.svg");
+    let path = dir.join("node.xml");
     std::fs::write(&path, &xml).unwrap();
     let editor = "sed -i s/325/25/";
     ` ./editor-open.sh ${v}open_ `
