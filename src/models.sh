@@ -10,9 +10,9 @@ cat << 'EOF'
 const PAGE_W: f32 = 750.0;
 const PAGE_H: f32 = 750.0;
 
-// svg text with no font-size: 16px, in Courier New (the old web app's body
-// font, which inline svg text inherited). The bundled Liberation Mono has
-// the same metrics.
+// svg text with no font-size: 16px, in the browser's default serif font
+// (Times New Roman), which the diagrams' boxes were sized for. The bundled
+// Liberation Serif has the same metrics.
 const TEXT_SIZE: f32 = 16.0;
 // below this many screen pixels, text is drawn as a bar instead of glyphs
 const TEXT_LOD_PX: f32 = 4.0;

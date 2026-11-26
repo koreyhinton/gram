@@ -54,7 +54,7 @@ tests/*.test.sh    generated into tests/*.rs
 tests/mutate.sh
 ```
 
-Crates: `macroquad`, `quick-xml` and `rstar`, plus a clipboard crate if macroquad's clipboard isn't enough (step 30). Text uses the bundled `assets/LiberationMono-Regular.ttf` (SIL OFL, license alongside): the old web app's SVG text inherited the page's Courier New, and Liberation Mono has the same metrics.
+Crates: `macroquad`, `quick-xml` and `rstar`, plus a clipboard crate if macroquad's clipboard isn't enough (step 30). Text uses the bundled `assets/LiberationSerif-Regular.ttf` (SIL OFL, `assets/Liberation-LICENSE.txt`), which has Times New Roman's metrics. The old app's CSS set Courier New on the page body, but the diagrams' boxes and the `StartEndFrame.FromText` widths (narrow `i`/`l`/`t`, wide `H`/`W`) were sized for a proportional serif font, which is how a browser shows the `.svg` files. Liberation Mono overflowed the boxes.
 
 ## Decisions log
 

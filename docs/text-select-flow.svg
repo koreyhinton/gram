@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="750" height="750" viewBox="0,0,750,750">
+    <text x="610" y="21" fill="black" text-decoration="underline line-through">9.7</text>
+    <text x="610" y="41" fill="black" text-decoration="line-through">9.7</text>
+    <text x="390" y="61" fill="black">(strikethrough w/ and w/out underline^)</text>
+    <text x="51" y="65" fill="black" id="text1">text selection via end-click-n-drag</text>
+    <rect rx="10" ry="10" x="104" y="283" width="141" height="51" stroke="black" fill="transparent" stroke-width="1" id="rect1"/>
+    <text x="143" y="312" fill="black" id="text4">mouseup</text>
+    <circle cx="34" cy="310" r="10" fill="black" stroke="black" stroke-width="1"/>
+    <polyline points="46 311 98 311 88 301 98 311 88 321" stroke="black" fill="transparent" stroke-width="1" id="polyline1"/>
+    <polyline points="297 312 391 312 381 302 391 312 381 322" stroke="black" fill="transparent" stroke-width="1" id="polyline2"/>
+    <rect rx="10" ry="10" x="400" y="278" width="165" height="58" stroke="black" fill="transparent" stroke-width="1" id="rect2"/>
+    <polyline points="250 312 280 312 270 302 280 312 270 322" stroke="black" fill="transparent" stroke-width="1" id="polyline3"/>
+    <polyline points="282 312 289 305 296 312 289 319 282 312" stroke="black" fill="transparent" stroke-width="1" id="polyline4"/>
+    <text x="278" y="300" fill="black" id="text5">[mgIsDragging()]</text>
+    <text x="114" y="332" fill="black" id="text6">index.js</text>
+    <text x="35" y="657" fill="black" id="text7">mg* js/node-manage.js</text>
+    <text x="417" y="312" fill="black" id="text8">issueRectSelectClick</text>
+    <text x="408" y="333" fill="black" id="text9">mg*</text>
+    <polyline points="392 338 85 389 93.24574031481382 394.89639530891714 85 389 90.89639530891714 380.7542596851862" stroke="black" fill="transparent" stroke-width="1" id="polyline5"/>
+    <polyline points="68 390 75 383 82 390 75 397 68 390" stroke="black" fill="transparent" stroke-width="1" id="polyline6"/>
+    <polyline points="83 392 287 392 277 382 287 392 277 402" stroke="black" fill="transparent" stroke-width="1" id="polyline7"/>
+    <text x="95" y="410" fill="black" id="text10">[gRectSelectState.state.Drag]</text>
+    <text x="302" y="425" fill="black" id="text11">issueRectSelectClick2</text>
+    <rect rx="10" ry="10" x="288" y="393" width="165" height="58" stroke="black" fill="transparent" stroke-width="1" id="rect4"/>
+    <text x="303" y="445" fill="black" id="text12">mg*</text>
+    <rect rx="0" ry="0" x="59" y="273" width="19" height="16" stroke="black" fill="transparent" stroke-width="1" id="rect3"/>
+    <text x="45" y="263" fill="black" id="text13">(mouse) x,y</text>
+    <polyline points="457 421 504 421 494 411 504 421 494 431" stroke="black" fill="transparent" stroke-width="1" id="polyline8"/>
+    <rect rx="10" ry="10" x="534" y="573" width="165" height="58" stroke="black" fill="transparent" stroke-width="1" id="rect5"/>
+    <text x="548" y="605" fill="black" id="text14">issueSelection</text>
+    <text x="539" y="625" fill="black" id="text15">index.js</text>
+    <text x="529" y="427" fill="black" id="text17">setMouseRects</text>
+    <text x="520" y="447" fill="black" id="text16">index.js</text>
+    <rect rx="10" ry="10" x="515" y="395" width="165" height="58" stroke="black" fill="transparent" stroke-width="1" id="rect6"/>
+    <text x="477" y="379" fill="black" id="text18">nodes</text>
+    <rect rx="0" ry="0" x="476" y="385" width="19" height="16" stroke="black" fill="transparent" stroke-width="1" id="rect7"/>
+    <polyline points="552 516 570 564 574.7140452079103 553.6291005425973 570 564 559.6291005425971 559.2859547920895" stroke="black" fill="transparent" stroke-width="1" id="polyline9"/>
+    <rect rx="0" ry="0" x="587" y="550" width="19" height="16" stroke="black" fill="transparent" stroke-width="1" id="rect8"/>
+    <text x="588" y="544" fill="black" id="text19">sel. nodes (in-bounds)</text>
+    <polyline points="543 505 550 498 557 505 550 512 543 505" stroke="black" fill="transparent" stroke-width="1" id="polyline10"/>
+    <polyline points="536 462 547 494 552.399724510879 482.9434212396286 547 494 535.9434212396286 488.600275489121" stroke="black" fill="transparent" stroke-width="1" id="polyline11"/>
+    <text x="567" y="521" fill="black" id="text20">[inBounds]</text>
+    <text x="610" y="371" fill="black" id="text21" text-decoration="line-through">9.7</text>
+    <rect rx="10" ry="10" x="591" y="336" width="156" height="58" stroke="black" fill="transparent" stroke-width="1" id="rect9"/>
+    <text x="598" y="390" fill="black" id="text22">js/addon-palettes.js</text>
+    <rect rx="0" ry="0" x="583" y="305" width="164" height="92" stroke="black" fill="transparent" stroke-width="1" id="rect10"/>
+    <text x="607" y="328" fill="black" id="text23">StartEndFrame</text>
+    <text x="617" y="354" fill="black" id="text24">FromText</text>
+    <text x="635" y="369" fill="black" id="text25">var * html.length</text>
+    <text x="30" y="681" fill="black" id="text26">var (various)</text>
+</svg>

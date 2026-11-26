@@ -88,9 +88,9 @@ cat << EOF
     #[macroquad::main(window_conf)]
     async fn main() {
         let (title, doc) = LOADED.lock().unwrap().take().expect("window_conf loads the file");
-        // Liberation Mono: the same metrics as Courier New, which the old web
-        // app's svg text was drawn in
-        let font = load_ttf_font_from_bytes(include_bytes!("../assets/LiberationMono-Regular.ttf")).ok();
+        // Liberation Serif: the same metrics as Times New Roman, the serif
+        // font the diagrams' text was laid out in
+        let font = load_ttf_font_from_bytes(include_bytes!("../assets/LiberationSerif-Regular.ttf")).ok();
 
         ` ./spatial-index.sh ${v}index_ `
 

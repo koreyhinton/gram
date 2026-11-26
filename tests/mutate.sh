@@ -110,6 +110,8 @@ mutant bug "text is rasterized at its world size" src/draw-doc.sh \
     's/let font_px = screen_px\.min(TEXT_MAX_PX)/let font_px = text_size.min(TEXT_MAX_PX)/'
 mutant bug "line-through is ignored" src/draw-doc.sh \
     's/let strike = decoration\.contains("line-through");/let strike = false;/'
+mutant bug "underline is ignored" src/draw-doc.sh \
+    's/let underline = decoration\.contains("underline");/let underline = false;/'
 mutant bug "tiny text draws glyphs" src/draw-doc.sh \
     's/if screen_px < TEXT_LOD_PX {/if false {/'
 mutant bug "the page border scales with zoom" src/draw-page.sh \

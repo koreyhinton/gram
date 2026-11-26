@@ -292,8 +292,8 @@ cat << EOF
                 let screen_px = text_size * ${!canvas}.zoom;
                 if screen_px < TEXT_LOD_PX {
                     // too small to read: a faint bar where the text is
-                    // (Courier New's advance is 0.6em)
-                    let bar_w = display.chars().count() as f32 * text_size * 0.6;
+                    // (Times New Roman averages about 0.45em a character)
+                    let bar_w = display.chars().count() as f32 * text_size * 0.45;
                     draw_line(
                         x,
                         y - text_size * 0.3,
@@ -323,8 +323,17 @@ cat << EOF
                     let strike = decoration.contains("line-through");
                     if underline || strike {
                         let text_w = measure_text(&display, ${!font}, font_px as u16, font_scale).width;
-                        let line_y = if strike { y - text_size * 0.3 } else { y + text_size * 0.12 };
-                        draw_line(x, line_y, x + text_w, line_y, text_size / 16.0, color);
+                        // both can be set ("underline line-through")
+                        let mut line_ys: Vec<f32> = vec![];
+                        if underline {
+                            line_ys.push(y + text_size * 0.12);
+                        }
+                        if strike {
+                            line_ys.push(y - text_size * 0.3);
+                        }
+                        for line_y in line_ys {
+                            draw_line(x, line_y, x + text_w, line_y, text_size / 16.0, color);
+                        }
                     }
                 }
             }

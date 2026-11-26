@@ -103,7 +103,7 @@ fn draw_text_ex(text: &str, x: f32, y: f32, params: TextParams) {
     });
 }
 
-// Courier New's advance: 0.6em per character
+// a stand-in width: 0.6em per character (the real font is proportional)
 fn measure_text(text: &str, _font: Option<&Font>, font_size: u16, font_scale: f32) -> TextDimensions {
     TextDimensions {
         width: text.chars().count() as f32 * font_size as f32 * font_scale * 0.6,
@@ -342,6 +342,23 @@ fn line_through_strikes_the_text() {
     assert_eq!(from.x, 55.0);
     assert!((to.x - (55.0 + 3.0 * 16.0 * 0.6)).abs() < 1e-3);
     assert!(from.y < 380.0 && from.y > 380.0 - 16.0);
+}
+
+#[test]
+fn underline_and_line_through_both_draw() {
+    let svg_text = r#"<svg><text x="55" y="380" fill="black" text-decoration="underline line-through">abc</text></svg>"#;
+    let canvas = canvas_at(1.0);
+
+    ` ./svg-load.sh ${v}load_ `
+    assert_eq!(error, None);
+    ` ./spatial-index.sh ${v}index_ `
+    ` ./draw-doc.sh ${v}draw_ `
+
+    let segments = lines(&drawn());
+    assert_eq!(segments.len(), 2);
+    // one below the baseline, one above it
+    assert!(segments.iter().any(|(from, _)| from.y > 380.0));
+    assert!(segments.iter().any(|(from, _)| from.y < 380.0 && from.y > 380.0 - 16.0));
 }
 
 #[test]
