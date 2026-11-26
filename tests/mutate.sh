@@ -45,7 +45,8 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 
 # ---- not implemented: each snippet the tests inline ----
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
-    draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error; do
+    draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
+    editor-pick editor-open editor-poll file-watch; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -170,6 +171,22 @@ mutant bug "rows are drawn ignoring the scroll" src/tree-draw.sh \
     's/\* TREE_ROW_H - \${!scroll};/* TREE_ROW_H;/'
 mutant bug "the error isn't said" src/page-error.sh \
     '/draw_text(\${!error},/d'
+
+# ---- the external editor ----
+mutant bug "the editor fallback order is wrong" src/editor-pick.sh \
+    's/\["GRAM_EDITOR", "VISUAL", "EDITOR"\]/["GRAM_EDITOR", "EDITOR", "VISUAL"]/'
+mutant bug "a blank editor variable is used" src/editor-pick.sh \
+    '/\.find(|value| !value\.trim()\.is_empty())/s/!value\.trim()\.is_empty()/true/'
+mutant bug "a path with spaces splits" src/editor-open.sh \
+    's/format!("{} \\"\\$1\\"", /format!("{} \\$1", /'
+mutant bug "a failed editor isn't reported" src/editor-poll.sh \
+    's/if !status\.success() {/if false {/'
+mutant bug "the editor stays after it exits" src/editor-poll.sh \
+    '/^    if \${!exited} {$/,/^    }$/d'
+mutant bug "the reload misses a length-only change" src/file-watch.sh \
+    's/\.map(|time| (time, meta\.len()))/.map(|time| (time, 0))/'
+mutant bug "the watch never takes a new stamp" src/file-watch.sh \
+    '/\${!stamp} = \${v}now;/d'
 
 # copy <from> <to>: the repo's scripts and crate files the tests need
 copy_repo() {
