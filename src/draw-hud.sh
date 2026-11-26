@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# draw-hud: the status line, in screen space (call it with the default camera).
+# draw-hud: the status line along the bottom, right of the folder tree, in
+# screen space (call it with the default camera).
 #
 #   input:  Canvas  Canvas
 #   input:  Title   &str, the open file's name
@@ -21,7 +22,7 @@ cat << EOF
             ${v}mouse.x,
             ${v}mouse.y
         ),
-        12.0,
+        TREE_W + 12.0,
         screen_height() - 12.0,
         20.0,
         HUD_TEXT,

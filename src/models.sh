@@ -42,6 +42,19 @@ const GRID_AXIS: Color = Color::new(0.50, 0.55, 0.65, 0.95);
 const PAGE_BG: Color = Color::new(1.0, 1.0, 1.0, 1.0);
 const PAGE_BORDER: Color = Color::new(0.60, 0.63, 0.68, 1.0);
 const HUD_TEXT: Color = Color::new(0.25, 0.27, 0.30, 1.0);
+const ERROR_TEXT: Color = Color::new(0.70, 0.12, 0.12, 1.0);
+
+// the folder tree, a panel down the left of the window (screen pixels)
+const TREE_W: f32 = 260.0;
+const TREE_ROW_H: f32 = 22.0;
+const TREE_INDENT: f32 = 14.0;
+const TREE_PAD: f32 = 8.0;
+const TREE_TEXT_PX: u16 = 15;
+const TREE_SCROLL_ROWS: f32 = 3.0; // rows per wheel notch
+const TREE_BG: Color = Color::new(0.97, 0.97, 0.98, 1.0);
+const TREE_BORDER: Color = Color::new(0.75, 0.77, 0.81, 1.0);
+const TREE_TEXT: Color = Color::new(0.15, 0.16, 0.18, 1.0);
+const TREE_SELECTED: Color = Color::new(0.80, 0.86, 0.96, 1.0);
 
 // svg color keywords the diagrams use, plus the common ones
 const NAMED_COLORS: [(&str, [u8; 3]); 28] = [
@@ -103,6 +116,42 @@ struct Canvas {
     zoom: f32,
     panning: bool,
     last_mouse: Vec2,
+}
+
+// one row of the folder tree: a folder, or an .svg file (a page). depth is
+// how far it sits below the root (0 for the root's own entries).
+#[derive(Clone, Debug, PartialEq)]
+struct TreeEntry {
+    path: std::path::PathBuf,
+    name: String,
+    depth: usize,
+    is_dir: bool,
+}
+
+// an opened .svg file, kept while gram runs so switching back finds it as
+// it was left (view, and later selection and unsaved edits)
+struct Page {
+    path: std::path::PathBuf,
+    doc: Doc,
+    index: rstar::RTree<SpatialEntry>,
+    canvas: Canvas,
+    // why the file couldn't be read or parsed; the page then draws nothing
+    error: Option<String>,
+    // changed since it was loaded or saved (shown as * in the tree)
+    dirty: bool,
+    // fitted to the window once it had its real size
+    fitted: bool,
+}
+
+// the folder gram opened: its tree, which folders are folded, how far the
+// tree is scrolled, and the pages opened so far
+struct Workspace {
+    root: std::path::PathBuf,
+    entries: Vec<TreeEntry>,
+    collapsed: Vec<std::path::PathBuf>,
+    scroll: f32,
+    pages: Vec<Page>,
+    open: Option<usize>,
 }
 
 // a node's bounds in the R-tree; id is its index in Doc.nodes

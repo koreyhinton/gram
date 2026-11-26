@@ -8,7 +8,8 @@ The app is being ported from the old JS/PHP web app by replaying its history com
 
 ```bash
 ./build.sh   # runs src/main.sh, formats with rustfmt, writes src/main.rs
-cargo run -- ~/diagram_root
+cargo run -- diagrams     # a folder: its .svg files as a tree
+cargo run -- docs/concave-fill.svg   # a file: its folder, with it open
 ```
 
 - `src/main.rs` is generated and gitignored. Never edit it; edit the `.sh` files and run `./build.sh`.
@@ -55,7 +56,12 @@ The app has no text-editing widgets. Text editing goes to the user's editor, the
 
 ## Folder tree
 
-`gram <dir>` scans `<dir>` recursively for `.svg` files and shows a collapsible tree. This replaces the old web app's books, pages, add-page and clone. A new page is a new file in the selected folder, and clone copies a folder.
+`gram <dir>` scans `<dir>` recursively for `.svg` files and shows a collapsible tree. `gram <file.svg>` opens the file's folder with the file open. This replaces the old web app's books, pages, add-page and clone. A new page is a new file in the selected folder, and clone copies a folder.
+
+- The tree lists folders before files, each by name ignoring case. Hidden entries, folders with no `.svg` inside, and symlinked folders are left out.
+- Each opened file is a `Page` in the `Workspace` (`src/models.sh`), kept while gram runs, so switching back finds it as it was left. Per-file state (canvas, selection, editor, unsaved changes) goes on the `Page`, never in globals.
+- A file that can't be read or parsed opens as a page showing the error, and gram keeps running.
+- The tree takes the mouse over its panel (`TREE_W`); the canvas takes it elsewhere.
 
 ## Native first
 
