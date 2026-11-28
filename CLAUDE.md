@@ -17,7 +17,7 @@ cargo run -- docs/concave-fill.svg   # a file: its folder, with it open
 - `main.sh` prints `#![allow(non_snake_case)]` because orc names like `mn_join_Post` aren't snake case.
 - `./test.sh` generates `tests/*.test.sh` into `tests/*.rs` (gitignored) and runs `cargo test`. Run `. ./orc-env.sh` before generating one test file by hand.
 - `orc-env.sh` pins orc's core version (`0.1.0`), and CI checks out the matching tag (`ref: core/v0.1.0`). A different `../orc` stops the build. Bump both together to move to a newer orc.
-- `tests/mutate.sh` checks that the tests fail when a snippet is missing or broken.
+- `tests/mutate.sh` checks that the tests fail when a snippet is missing or broken. The full run (CI) also fails on any test that no mutant makes fail: every new test needs a mutant it kills. Locally, `--changed` runs only the mutants your changes against `main` can affect, `--name <pattern>` picks mutants by name, and `--list` shows what would run.
 - `src/models.sh` prints the app's constants and types (Node, Doc, Selection, ...). `main.sh` and the tests both print it, so snippets compile against the same definitions everywhere.
 
 ## Assembling code with orc

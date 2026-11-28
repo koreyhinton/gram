@@ -20,11 +20,51 @@
 # shares the repo's target directory, so the dependencies aren't built twice,
 # under its own package name (gram-mutant) so it never touches the real
 # crate's test binaries.
+#
+# Usage: tests/mutate.sh [--changed[=<ref>]] [--name <pattern>] [--list]
+#   (no options)      every mutant, then the pairing check: every test must
+#                     kill at least one mutant, or it is reported UNPAIRED and
+#                     the run fails. This is what CI runs.
+#   --changed[=<ref>] only the mutants your changes against <ref> (default
+#                     main, committed or not, new files too) can affect: those
+#                     on a changed src/ file, those on a snippet a changed
+#                     test file inlines, and those added or edited in this
+#                     file. A quick local check; run the full suite before a PR.
+#   --name <pattern>  only the mutants whose name matches the pattern (an
+#                     extended regex, any case).
+#   --list            print the mutants the other options pick, and stop.
+# With either option the pairing check is skipped, since most mutants don't run.
 
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     echo "Error, script must not be sourced. Run it without sourcing it" >&2
     return 1
 fi
+
+RN_CHANGED=""
+RN_NAME=""
+RN_LIST=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --changed) RN_CHANGED="main" ;;
+        --changed=*) RN_CHANGED="${1#--changed=}" ;;
+        --name)
+            [[ $# -ge 2 ]] || { echo "--name needs a pattern" >&2; exit 2; }
+            RN_NAME="$2"
+            shift
+            ;;
+        --name=*) RN_NAME="${1#--name=}" ;;
+        --list) RN_LIST=1 ;;
+        -h | --help)
+            sed -n '/^# Usage:/,/^# With either option/p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        *)
+            echo "unknown option: $1 (see --help)" >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
 
 RN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${RN_DIR}" || exit 1
@@ -53,6 +93,12 @@ for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-pa
 done
 
 # ---- loading ----
+mutant bug "invalid xml loads without an error" src/svg-load.sh \
+    's/^\( *\)\${!error} = Some(format!($/\1let _ = Some(format!(/'
+mutant bug "a broken attribute loads without an error" src/svg-load.sh \
+    's/\${!error} = Some(format!("invalid attribute in/let _ = Some(format!("invalid attribute in/'
+mutant bug "a file without an <svg> root loads without an error" src/svg-load.sh \
+    's/    if \${!error}\.is_none() \&\& !\${v}seen_root {/    if false {/'
 mutant bug "entities are dropped from text" src/svg-load.sh \
     "/\.text\.push('&');/d"
 mutant bug "text boxes ignore the character widths" src/mouse-rects.sh \
@@ -93,6 +139,8 @@ mutant bug "fit doesn't center the page" src/canvas-fit.sh \
     's/\.offset = vec2(PAGE_W, PAGE_H) \* 0\.5/.offset = Vec2::ZERO * 0.5/'
 
 # ---- the grid ----
+mutant bug "the grid draws past the view" src/draw-grid.sh \
+    's/        while x <= \${v}view\.x + \${v}view\.w {/        while x <= ${v}view.x + ${v}view.w * 3.0 {/'
 mutant bug "the minor grid never fades" src/draw-grid.sh \
     's/GRID_MINOR\.a \* \${v}fade/GRID_MINOR.a/'
 mutant bug "the minor grid never goes" src/draw-grid.sh \
@@ -143,6 +191,12 @@ mutant bug "the HUD's mouse point ignores the zoom" src/draw-hud.sh \
     's/Vec2::from(mouse_position()) \/ \${!canvas}\.zoom/Vec2::from(mouse_position())/'
 
 # ---- the workspace and the folder tree ----
+mutant bug "a folder opens with itself as the open page" src/workspace-args.sh \
+    's/^                \${!root} = path;$/                ${!open} = Some(path.clone()); ${!root} = path;/'
+mutant bug "a click on a file row doesn't report it" src/tree-click.sh \
+    's/            \${!clicked} = Some(entry\.path\.clone());/            let _ = \&entry.path;/'
+mutant bug "clicks right of the tree panel act on it" src/tree-click.sh \
+    's/let \${v}over = \${v}mouse\.x >= 0\.0 \&\& \${v}mouse\.x < TREE_W;/let ${v}over = ${v}mouse.x >= 0.0;/'
 mutant bug "an .svg file opens nothing" src/workspace-args.sh \
     '/\${!open} = Some(path);/d'
 mutant bug "any file is accepted" src/workspace-args.sh \
@@ -282,6 +336,8 @@ mutant bug "line mode's hints say how to select" src/hud-hints.sh \
     's/        _ if \${!mode} == 1 => {/        _ if false => {/'
 
 # ---- <g> groups ----
+mutant bug "a right-click outside any group selects the clicked node" src/select-group.sh \
+    's/^    if let Some(group) = \${v}target {$/    if ${v}target.is_none() { ${!selection}.ids = ${!hit}.into_iter().collect(); } if let Some(group) = ${v}target {/'
 mutant bug "a right-click doesn't go up from the selected group" src/select-group.sh \
     's/let mut \${v}from: Option<usize> = if \${v}inside_group {/let mut ${v}from: Option<usize> = if false {/'
 mutant bug "empty space doesn't count as inside the group" src/select-group.sh \
@@ -334,6 +390,69 @@ run_tests() {
     return 0
 }
 
+# ---- which mutants run ----
+RN_SELECTED=("${!MT_NAMES[@]}")
+if [[ -n "${RN_CHANGED}" ]]; then
+    git rev-parse --verify -q "${RN_CHANGED}" > /dev/null || {
+        echo "--changed: no such ref: ${RN_CHANGED}" >&2
+        exit 2
+    }
+    # files changed against the ref (committed, staged or not), and new ones
+    rn_files=$( (git diff --name-only "${RN_CHANGED}" -- && git ls-files --others --exclude-standard) | sort -u)
+    # the files a mutant can touch: changed snippets, and the snippets each
+    # changed test file inlines
+    rn_touched=$(echo "${rn_files}" | grep -E '^src/.*\.sh$')
+    for test_file in $(echo "${rn_files}" | grep -E '^tests/.*\.test\.sh$'); do
+        [[ -f "${test_file}" ]] || continue
+        rn_touched+=$'\n'$(grep -o '` \./[a-z0-9-]*\.sh' "${test_file}" | sed 's/^` \.\//src\//' | sort -u)
+    done
+    # mutants added or edited in this file, by name, and the snippets added to
+    # the "not written" list
+    rn_new_names=""
+    if echo "${rn_files}" | grep -qx 'tests/mutate.sh'; then
+        rn_added=$(git diff "${RN_CHANGED}" -- tests/mutate.sh | grep '^+' | grep -v '^+++')
+        rn_new_names=$(echo "${rn_added}" | sed -n 's/^+mutant [a-z]* "\([^"]*\)".*/\1/p')
+        # the "not written" list's lines: only snippet names, maybe with the
+        # loop's "for snippet in" or "; do", or a trailing backslash
+        for snippet in $(echo "${rn_added}" | grep -E '^\+( *for snippet in)? *[a-z0-9 -]+( \\|; do)?$' |
+            sed -e 's/^+//' -e 's/for snippet in//' -e 's/; do$//' -e 's/\\$//'); do
+            [[ -f "src/${snippet}.sh" ]] && rn_new_names+=$'\n'"${snippet}.sh not written"
+        done
+    fi
+    RN_SELECTED=()
+    for i in "${!MT_NAMES[@]}"; do
+        hit=0
+        for file in ${MT_FILES[$i]}; do
+            echo "${rn_touched}" | grep -qx "${file}" && hit=1
+        done
+        echo "${rn_new_names}" | grep -qxF -- "${MT_NAMES[$i]}" && hit=1
+        [[ ${hit} -eq 1 ]] && RN_SELECTED+=("${i}")
+    done
+fi
+if [[ -n "${RN_NAME}" ]]; then
+    rn_kept=()
+    for i in "${RN_SELECTED[@]}"; do
+        echo "${MT_NAMES[$i]}" | grep -qiE -- "${RN_NAME}" && rn_kept+=("${i}")
+    done
+    RN_SELECTED=("${rn_kept[@]}")
+fi
+if [[ ${RN_LIST} -eq 1 ]]; then
+    for i in "${RN_SELECTED[@]}"; do
+        printf '%-8s %s  (%s)\n' "${MT_KINDS[$i]}" "${MT_NAMES[$i]}" "${MT_FILES[$i]}"
+    done
+    echo "${#RN_SELECTED[@]} of ${#MT_NAMES[@]} mutants"
+    exit 0
+fi
+RN_FILTERED=0
+[[ -n "${RN_CHANGED}${RN_NAME}" ]] && RN_FILTERED=1
+if [[ ${RN_FILTERED} -eq 1 ]]; then
+    echo "running ${#RN_SELECTED[@]} of ${#MT_NAMES[@]} mutants${RN_CHANGED:+ (changed against ${RN_CHANGED})}${RN_NAME:+ (name matching ${RN_NAME})}"
+    if [[ ${#RN_SELECTED[@]} -eq 0 ]]; then
+        echo "no mutants to run"
+        exit 0
+    fi
+fi
+
 # the real code must pass first, or every mutant would look killed
 copy_repo "${RN_DIR}" "${RN_CRATE}"
 run_tests "${RN_LOGS}/baseline.log"
@@ -345,7 +464,8 @@ fi
 echo "baseline: passes"
 
 RN_BAD=0
-for i in "${!MT_NAMES[@]}"; do
+RN_KILLERS=""
+for i in "${RN_SELECTED[@]}"; do
     kind="${MT_KINDS[$i]}"
     name="${MT_NAMES[$i]}"
     log="${RN_LOGS}/mutant-${i}.log"
@@ -367,6 +487,7 @@ for i in "${!MT_NAMES[@]}"; do
     ec=$?
     # cargo prints "---- <test> stdout ----" before each failing test's output
     killers=$(sed -n 's/^---- \([a-z0-9_]*\) stdout ----$/\1/p' "${log}" | sort -u | paste -sd ',' | sed 's/,/, /g')
+    RN_KILLERS+=$'\n'$(sed -n 's/^---- \([a-z0-9_]*\) stdout ----$/\1/p' "${log}")
     if [[ ${ec} -eq 1 ]]; then
         echo "killed    ${name}"
         echo "              by: ${killers}"
@@ -386,5 +507,20 @@ done
 # leave the crate as the real code, for the next run's baseline
 copy_repo "${RN_DIR}" "${RN_CRATE}"
 
-echo "${#MT_NAMES[@]} mutants, $((${#MT_NAMES[@]} - RN_BAD)) killed, ${RN_BAD} not"
+echo "${#RN_SELECTED[@]} mutants, $((${#RN_SELECTED[@]} - RN_BAD)) killed, ${RN_BAD} not"
+
+# ---- pairing: every test kills at least one mutant (full runs only) ----
+# A test no mutant can fail isn't known to catch anything. Kills by a compile
+# error name no test, so they don't count here.
+if [[ ${RN_FILTERED} -eq 0 ]]; then
+    rn_unpaired=0
+    for test_name in $(grep -h -A1 '^#\[test\]' tests/*.test.sh | sed -n 's/^fn \([a-z0-9_]*\)().*/\1/p' | sort -u); do
+        if ! echo "${RN_KILLERS}" | grep -qx "${test_name}"; then
+            echo "UNPAIRED  ${test_name}: no mutant makes it fail"
+            rn_unpaired=$((rn_unpaired + 1))
+        fi
+    done
+    echo "pairing: ${rn_unpaired} unpaired test(s)"
+    RN_BAD=$((RN_BAD + rn_unpaired))
+fi
 [[ ${RN_BAD} -eq 0 ]]

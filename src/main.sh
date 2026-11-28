@@ -462,15 +462,9 @@ cat << EOF
             // a right click on the canvas selects a group
             let canvas_right_click = is_mouse_button_pressed(MouseButton::Right) && mouse.x >= TREE_W && !editing;
 
-            clear_background(CANVAS_BG);
-
+            // the open page's update: its view, and what a click does to it
             if let Some(i) = ws.open {
                 let page = &mut ws.pages[i];
-                let name = page
-                    .path
-                    .file_name()
-                    .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_default();
 
                 // fit once the window has its real size, and on F or Home
                 let sized = screen_width() > 0.0 && screen_height() > 0.0;
@@ -512,6 +506,18 @@ cat << EOF
                     ` ./hit-test.sh ${v}hit_ `
                     ` ./select-group.sh ${v}group_ `
                 }
+            }
+
+            // ---- draw: from here on the frame only reads the model ----
+            clear_background(CANVAS_BG);
+
+            if let Some(i) = ws.open {
+                let page = &ws.pages[i];
+                let name = page
+                    .path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_default();
 
                 // world space: the camera shows the canvas's view, y down like svg
                 let view_w = screen_width() / page.canvas.zoom;
