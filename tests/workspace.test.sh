@@ -222,6 +222,8 @@ fn page(path: &str, dirty: bool, error: Option<&str>) -> Page {
         fitted: false,
         selection: Selection::default(),
         line_from: None,
+        history: History::default(),
+        saved: Doc::default(),
     }
 }
 

@@ -5,6 +5,7 @@
 #   input:   Doc        Doc
 #   input:   Selection  Selection
 #   input:   Mode       u8, the mode (0-9)
+#   input:   Undo       bool, whether the page has a change to undo
 #   output:  Hints      String (declared here)
 #
 # With nothing selected: how to pan, zoom, fit, select and select a group.
@@ -12,11 +13,12 @@
 # selected, named by its tag), that a second click deselects a node, and
 # that Esc deselects all. With a group selected: that Enter moves the group
 # and a right-click goes to the group above. In line mode (1): that two
-# clicks draw a line, and how to get back to select mode.
+# clicks draw a line, and how to get back to select mode. With something to
+# undo, they end with ", Ctrl-Z: undo".
 
 v=$1
 # maps
-. ${NSMAP}/bind ${v} Doc Selection Mode Hints
+. ${NSMAP}/bind ${v} Doc Selection Mode Undo Hints
 
 cat << EOF
 
@@ -44,5 +46,7 @@ cat << EOF
                 .to_string()
         }
     };
+    // undo, once there is something to undo
+    let ${!hints} = if ${!undo} { format!("{}, Ctrl-Z: undo", ${!hints}) } else { ${!hints} };
 
 EOF

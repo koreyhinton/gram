@@ -271,6 +271,10 @@ struct Page {
     selection: Selection,
     // line mode's first click (world units), waiting for the line's end
     line_from: Option<Vec2>,
+    // what can be undone and redone (history-push.sh, history-step.sh)
+    history: History,
+    // the page as last loaded or saved: undoing back to it clears dirty
+    saved: Doc,
 }
 
 // the folder gram opened: its tree, which folders are folded, how far the

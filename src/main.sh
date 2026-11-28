@@ -66,6 +66,21 @@ export ${v}group_Selection=page.selection
 export ${v}line_Pos=world
 export ${v}line_From=page.line_from
 export ${v}line_Nodes=page.doc.nodes
+# undo: a snapshot before each change, and Ctrl-Z / Ctrl-Y / Ctrl-A
+export ${v}push_History=page.history
+export ${v}push_Doc=page.doc
+export ${v}step_History=page.history
+export ${v}step_Doc=page.doc
+export ${v}step_Saved=page.saved
+export ${v}step_Back=back
+export ${v}step_Dirty=page.dirty
+export ${v}step_Stepped=stepped
+export ${v}all_Doc=page.doc
+export ${v}all_Selection=page.selection
+export ${v}ctrl_Presses=presses
+export ${v}ctrl_Ctrl=ctrl
+export ${v}ctrl_Shift=shift
+export ${v}ctrl_Action=ctrl_action
 export ${v}note_Doc=ws.pages[i].doc
 export ${v}note_Note=note
 
@@ -87,6 +102,7 @@ export ${v}hud_Hints=hints
 export ${v}hints_Doc=page.doc
 export ${v}hints_Selection=page.selection
 export ${v}hints_Mode=ws.mode
+export ${v}hints_Undo=can_undo
 export ${v}hints_Hints=hints
 
 export ${v}tree_Entries=ws.entries
@@ -222,6 +238,7 @@ cat << EOF
 
                         ws.pages.push(Page {
                             path,
+                            saved: doc.clone(),
                             doc,
                             index,
                             canvas: Canvas {
@@ -235,6 +252,7 @@ cat << EOF
                             fitted: false,
                             selection: Selection::default(),
                             line_from: None,
+                            history: History::default(),
                         });
                         ws.open = Some(ws.pages.len() - 1);
                     }
@@ -293,6 +311,8 @@ cat << EOF
                 } else if let Some(before) = before {
                     let page = &mut ws.pages[job_page];
                     if let Some(&edit_id) = page.selection.ids.last() {
+                        // the edit and its map undo as one change
+                        ` ./history-push.sh ${v}push_ `
                         ` ./node-apply.sh ${v}apply_ `
 
                         let after = page.doc.nodes[edit_id].clone();
@@ -322,10 +342,16 @@ cat << EOF
                 ` ./mouse-rects.sh ${v}rects_ `
                 ` ./spatial-index.sh ${v}index_ `
 
+                // the page from before the reload can be undone back to
+                if doc != page.doc {
+                    ` ./history-push.sh ${v}push_ `
+                }
+                page.saved = doc.clone();
                 page.doc = doc;
                 page.index = index;
                 page.error = read_error.or(load_error);
                 page.selection = Selection::default();
+                page.line_from = None;
                 page.dirty = false;
             }
             if done {
@@ -343,6 +369,40 @@ cat << EOF
                 if !editing && let Some(i) = ws.open {
                     ws.pages[i].selection = Selection::default();
                     ws.pages[i].line_from = None;
+                }
+            }
+
+            // Ctrl-Z undoes, Ctrl-Y and Ctrl-Shift-Z redo, Ctrl-A selects
+            // all (not while the editor is open)
+            let ctrl = is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::RightControl);
+            let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+
+            ` ./ctrl-keys.sh ${v}ctrl_ `
+
+            if !editing
+                && let Some(i) = ws.open
+                && ws.pages[i].error.is_none()
+            {
+                let page = &mut ws.pages[i];
+                match ctrl_action {
+                    Some(CtrlAction::Undo) | Some(CtrlAction::Redo) => {
+                        let back = ctrl_action == Some(CtrlAction::Undo);
+
+                        ` ./history-step.sh ${v}step_ `
+
+                        if stepped {
+                            ` ./mouse-rects.sh ${v}prects_ `
+                            ` ./spatial-index.sh ${v}pindex_ `
+
+                            page.index = index;
+                            page.selection = Selection::default();
+                            page.line_from = None;
+                        }
+                    }
+                    Some(CtrlAction::SelectAll) => {
+                        ` ./select-all.sh ${v}all_ `
+                    }
+                    None => {}
                 }
             }
 
@@ -484,6 +544,10 @@ cat << EOF
                 if canvas_click && page.error.is_none() && ws.mode == 1 {
                     let world = page.canvas.offset + mouse / page.canvas.zoom;
                     let count = page.doc.nodes.len();
+                    // the second click adds the line: the page before it can be undone back to
+                    if page.line_from.is_some() {
+                        ` ./history-push.sh ${v}push_ `
+                    }
 
                     ` ./add-line.sh ${v}line_ `
 
@@ -555,6 +619,7 @@ cat << EOF
                     ws.mode
                 );
 
+                let can_undo = !page.history.undo.is_empty();
                 ` ./hud-hints.sh ${v}hints_ `
                 ` ./draw-hud.sh ${v}hud_ `
             } else {
