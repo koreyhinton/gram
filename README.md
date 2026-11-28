@@ -54,6 +54,7 @@ With no editor set, `xdg-open` hands the node to your desktop's text editor and 
 | **Enter** | edit the green node in the editor; the change carries over to the other selected nodes |
 | **Esc** | deselect all, or drop a refused edit; while an edit is open in the editor, Esc twice drops it |
 | **R** | reopen a refused edit in the editor |
+| **Arrow keys** | move the selection 1 (hold to keep moving); a run of moves undoes as one |
 | **Ctrl-Z** | undo the last change to the page (up to 100) |
 | **Ctrl-Y** or **Ctrl-Shift-Z** | redo what was undone |
 | **Ctrl-A** | select every shape on the page |

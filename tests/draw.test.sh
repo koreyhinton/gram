@@ -528,4 +528,28 @@ fn the_swim3_example_opens_with_lanes_that_lose_clicks_to_the_header_line() {
     assert_eq!(hit, Some(3));
 }
 
+
+// the old Pins (devbox@716c2d6) and Connectors (devbox@c8a9616) templates,
+// as docs/examples files: each opens, with every node the template had
+#[test]
+fn the_pins_and_connectors_examples_open() {
+    for (file, want) in [
+        ("pins.svg", [("text", 8), ("circle", 3), ("rect", 6), ("polyline", 5)]),
+        ("connectors.svg", [("text", 9), ("circle", 5), ("rect", 2), ("polyline", 4)]),
+    ] {
+        let path = format!("{}/docs/examples/{}", env!("CARGO_MANIFEST_DIR"), file);
+        let svg_text = std::fs::read_to_string(&path).unwrap();
+        ` ./svg-load.sh ${v}load_ `
+        assert_eq!(error, None, "{}", file);
+        for (tag, count) in want {
+            assert_eq!(doc.nodes.iter().filter(|node| node.tag == tag).count(), count, "{} {}", file, tag);
+        }
+        assert_eq!(doc.nodes.len(), want.iter().map(|(_, count)| count).sum::<usize>(), "{}", file);
+    }
+    // the connectors' how-to keeps its quotes as text
+    let svg_text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/examples/connectors.svg")).unwrap();
+    ` ./svg-load.sh ${v}load_ `
+    assert_eq!(doc.nodes[1].text, r#"[6] Initial Node (set attrs to: r="12" fill="transparent")"#);
+}
+
 EOF

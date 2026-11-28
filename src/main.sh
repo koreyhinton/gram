@@ -95,6 +95,13 @@ export ${v}esc_Pressed=esc_pressed
 export ${v}esc_Now=now
 export ${v}esc_WarnedAt=job.warned_at
 export ${v}esc_Drop=drop_edit
+# arrow keys: move the selection
+export ${v}arrows_Events=key_events.events
+export ${v}arrows_Delta=arrow_delta
+export ${v}nudge_History=page.history
+export ${v}nudge_Doc=page.doc
+export ${v}nudge_Selection=page.selection
+export ${v}nudge_Delta=arrow_delta
 # undo: a snapshot before each change, and Ctrl-Z / Ctrl-Y / Ctrl-A
 export ${v}push_History=page.history
 export ${v}push_Doc=page.doc
@@ -470,6 +477,26 @@ cat << EOF
                     }
                     None => {}
                 }
+            }
+
+            // the arrow keys move the selection, a held key repeating; a run
+            // of presses on one selection undoes as one
+            ` ./arrow-delta.sh ${v}arrows_ `
+
+            if !editing
+                && arrow_delta != Vec2::ZERO
+                && let Some(i) = ws.open
+                && ws.pages[i].error.is_none()
+                && !ws.pages[i].selection.ids.is_empty()
+            {
+                let page = &mut ws.pages[i];
+
+                ` ./nudge.sh ${v}nudge_ `
+                ` ./mouse-rects.sh ${v}prects_ `
+                ` ./spatial-index.sh ${v}pindex_ `
+
+                page.index = index;
+                page.dirty = page.doc != page.saved;
             }
 
             // R: a refused node edit goes back to the editor, as it was left

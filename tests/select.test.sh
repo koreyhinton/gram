@@ -63,6 +63,13 @@ export ${v}rect_From=from
 export ${v}rect_Nodes=doc.nodes
 export ${v}rect_Radius=radius
 export ${v}line_Width=width
+# the arrow keys
+export ${v}arrows_Events=events
+export ${v}arrows_Delta=delta
+export ${v}nudge_History=history
+export ${v}nudge_Doc=doc
+export ${v}nudge_Selection=selection
+export ${v}nudge_Delta=delta
 # the edit's XML, read back
 export ${v}eload_Text=edit_text
 export ${v}eload_Doc=edited
@@ -822,6 +829,113 @@ fn tdd_17_rect_move_x_y_twice_moves_a_selected_arrow() {
     assert_eq!(selection.ids, vec![1, 2]);
     move_by(&mut doc, &mut selection, 1, 400.0 - 500.0, 400.0 - 500.0);
     assert_eq!(attr(&doc.nodes[1], "points"), "450 340 450 396 440 386 450 396 460 386");
+}
+
+
+// ---- arrow-key moves (devbox@11b5deb) ----
+
+// this frame's raw key events: each key pressed, then the same key's
+// repeats (held), as miniquad sends them
+fn key_downs(keys: &[(KeyCode, bool)]) -> Vec<KeyEvent> {
+    keys.iter().map(|&(key, repeat)| KeyEvent::Down { key, repeat }).collect()
+}
+
+// TDD TEST 18 - SELECTIONS MOVE BY ARROW KEYS
+#[test]
+fn tdd_18_selections_move_by_arrow_keys() {
+    let svg_text = SVG_EX_9;
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let mut selection = Selection::default();
+    // circle, polyline, both labels, then the rect (selected last)
+    for click in [(378.0, 41.0), (376.0, 92.0), (364.0, 129.0), (364.0, 151.0), (412.0, 113.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./hit-test.sh ${v}hit_ `
+        ` ./select.sh ${v}sel_ `
+    }
+    let (rect_was, text_was) = (coords(&doc.nodes[2]), coords(&doc.nodes[3]));
+    let mut history = History::default();
+
+    // left, then up (the old final Enter applied the move; gram's moves are
+    // live, and Enter stays the editor)
+    for key in [KeyCode::Left, KeyCode::Up] {
+        let events = key_downs(&[(key, false)]);
+        let mut delta = Vec2::ZERO;
+        ` ./arrow-delta.sh ${v}arrows_ `
+        ` ./nudge.sh ${v}nudge_ `
+    }
+
+    assert_eq!(coords(&doc.nodes[2]), shifted(&rect_was, -1.0, -1.0));
+    assert_eq!(coords(&doc.nodes[3]), shifted(&text_was, -1.0, -1.0));
+    assert_eq!(attr(&doc.nodes[2], "x"), "324");
+    assert_eq!(attr(&doc.nodes[3], "y"), "133");
+}
+
+#[test]
+fn each_arrow_moves_one_its_way_and_a_held_key_repeats() {
+    let cases = [
+        (vec![(KeyCode::Left, false)], vec2(-1.0, 0.0)),
+        (vec![(KeyCode::Right, false)], vec2(1.0, 0.0)),
+        (vec![(KeyCode::Up, false)], vec2(0.0, -1.0)),
+        (vec![(KeyCode::Down, false)], vec2(0.0, 1.0)),
+        // pressed and held: two repeats
+        (vec![(KeyCode::Right, false), (KeyCode::Right, true), (KeyCode::Right, true)], vec2(3.0, 0.0)),
+        // other keys don't move
+        (vec![(KeyCode::A, false), (KeyCode::Enter, false)], Vec2::ZERO),
+    ];
+    for (keys, want) in cases {
+        let events = key_downs(&keys);
+        let mut delta = Vec2::ZERO;
+        ` ./arrow-delta.sh ${v}arrows_ `
+        assert_eq!(delta, want, "{:?}", keys);
+    }
+}
+
+#[test]
+fn every_kind_moves_by_its_own_coordinates() {
+    let svg_text = r#"<svg>
+        <g stroke="black">
+            <circle cx="10" cy="20" r="5"/>
+            <line x1="1" y1="2" x2="30" y2="40"/>
+            <polyline points="5 6 7 8 9 10"/>
+            <text x="50" y="60">a</text>
+            <rect x="70" y="80" width="10" height="10"/>
+        </g>
+    </svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let group_was = doc.nodes[0].clone();
+    let mut history = History::default();
+    // the group too: it has no coordinates, so it stays as it is
+    let selection = Selection { ids: vec![0, 1, 2, 3, 4, 5], group: None };
+    let delta = vec2(2.0, -3.0);
+    ` ./nudge.sh ${v}nudge_ `
+
+    assert_eq!(doc.nodes[0], group_was);
+    assert_eq!((attr(&doc.nodes[1], "cx"), attr(&doc.nodes[1], "cy")), ("12", "17"));
+    let line = &doc.nodes[2];
+    assert_eq!((attr(line, "x1"), attr(line, "y1"), attr(line, "x2"), attr(line, "y2")), ("3", "-1", "32", "37"));
+    assert_eq!(attr(&doc.nodes[3], "points"), "7 3 9 5 11 7");
+    assert_eq!((attr(&doc.nodes[4], "x"), attr(&doc.nodes[4], "y")), ("52", "57"));
+    assert_eq!((attr(&doc.nodes[5], "x"), attr(&doc.nodes[5], "y")), ("72", "77"));
+    // the other nodes, and the attributes that aren't coordinates, stay
+    assert_eq!(attr(&doc.nodes[1], "r"), "5");
+    assert_eq!(attr(&doc.nodes[5], "width"), "10");
+}
+
+#[test]
+fn unselected_nodes_dont_move() {
+    let svg_text = SVG_EX_9;
+    ` ./svg-load.sh ${v}load_ `
+    let was = doc.clone();
+    let mut history = History::default();
+    let selection = Selection { ids: vec![2], group: None };
+    let delta = vec2(5.0, 5.0);
+    ` ./nudge.sh ${v}nudge_ `
+    for id in [0, 1, 3, 4] {
+        assert_eq!(doc.nodes[id], was.nodes[id]);
+    }
+    assert_eq!(attr(&doc.nodes[2], "x"), "330");
 }
 
 EOF

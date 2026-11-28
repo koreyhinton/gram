@@ -228,12 +228,12 @@ fn the_hints_say_how_to_edit_once_something_is_selected() {
     // Enter edits the last one selected: the rect
     let selection = Selection { ids: vec![0, 1], group: None };
     ` ./hud-hints.sh ${v}hints_ `
-    assert_eq!(hints, "Enter: edit the <rect>, click again: deselect, right-click: its group, Esc: deselect all");
+    assert_eq!(hints, "Enter: edit the <rect>, arrows: move, click again: deselect, right-click: its group, Esc: deselect all");
 
     // a group: the rest of it moves with the edit, and a right-click climbs
     let selection = Selection { ids: vec![0, 1], group: Some(7) };
     ` ./hud-hints.sh ${v}hints_ `
-    assert!(hints.starts_with("Enter: edit the <rect> (the group moves with it), right-click: the group above"), "{}", hints);
+    assert!(hints.starts_with("Enter: edit the <rect> (the group moves with it), arrows: move, right-click: the group above"), "{}", hints);
 }
 
 #[test]

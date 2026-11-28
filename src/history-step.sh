@@ -14,6 +14,7 @@
 # page it replaces on History.redo; redo is the same the other way. When it
 # stepped, Dirty becomes whether the page now differs from Saved, so undoing
 # back to the saved page clears it. With nothing to step to, nothing changes.
+# Either way it ends an arrow-key run (History.nudge).
 
 v=$1
 # maps
@@ -37,6 +38,7 @@ cat << EOF
             None => false,
         }
     };
+    ${!history}.nudge = None;
     if ${!stepped} {
         ${!dirty} = ${!doc} != ${!saved};
     }
