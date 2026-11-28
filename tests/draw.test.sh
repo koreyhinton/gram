@@ -2,7 +2,9 @@
 
 # Prints the drawing-mode tests as one Rust file (test.sh writes it to
 # tests/draw.rs). They follow the old web app's line mode (devbox@ed1a227):
-# with key 1 down, a click starts a line and the next click ends it.
+# with key 1 down, a click starts a line and the next click ends it. Then
+# devbox@8faf51d: arrows (mode 2), rects (mode 3), selecting a line, and a
+# swimlane that loses the click to what's inside it.
 #
 # The interface these tests fix:
 #   add-line.sh  binds Nodes, Pos and From. Pos is the click in world
@@ -12,6 +14,18 @@
 #       (ends rounded to whole numbers, as the browser's clicks were) and
 #       clears From. The caller marks the page dirty and rebuilds the
 #       click boxes when Nodes grew.
+#   add-arrow.sh  binds Nodes, Pos and From, as add-line.sh. The second click
+#       appends <polyline points="x1 y1 x2 y2 a1x a1y x2 y2 a2x a2y"
+#       stroke="black" fill="transparent" stroke-width="1"/>. An end within 11
+#       of the first click on an axis takes the first click's value there
+#       (straight arrows). The head's arms (arrow_head in models.sh) are at 45
+#       degrees from the shaft, 10 * sqrt(2) long, rounded to whole numbers.
+#   add-rect.sh  binds Nodes, Pos and From, as add-line.sh. The second click
+#       appends <rect rx="0" ry="0" x y width height stroke="black"
+#       fill="transparent" stroke-width="1"/> between the two clicks, drawn in
+#       any direction (x and y the smaller corner).
+#   hit-test.sh  a swimlane (a rect whose click box is over 200 wide and 300
+#       high) comes after every other shape, so what's inside it wins.
 
 : "${NSMAP:?set NSMAP (see test.sh)}"
 
@@ -32,6 +46,14 @@ export ${v}hit_Hit=hit
 export ${v}line_Nodes=doc.nodes
 export ${v}line_Pos=pos
 export ${v}line_From=from
+export ${v}arrow_Nodes=doc.nodes
+export ${v}arrow_Pos=pos
+export ${v}arrow_From=from
+export ${v}rect_Nodes=doc.nodes
+export ${v}rect_Pos=pos
+export ${v}rect_From=from
+export ${v}sel_Selection=selection
+export ${v}sel_Hit=hit
 export ${v}xml_Node=\(\&doc.nodes[id]\)
 export ${v}xml_Xml=xml
 
@@ -134,4 +156,180 @@ fn each_pair_of_clicks_draws_its_own_line() {
     ` ./node-xml.sh ${v}xml_ `
     assert_eq!(xml, r#"<line x1="20" y1="5" x2="20" y2="15" stroke="black" stroke-width="1"/>"#);
 }
+
+// ---- devbox@8faf51d ----
+
+// TDD TEST 3 - MODE 0 CAN CLICK TO SELECT LINE
+#[test]
+fn tdd_03_mode_0_can_click_to_select_a_line() {
+    let svg_text = SVG_EX;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    for click in [(25.0, 25.0), (250.0, 25.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-line.sh ${v}line_ `
+    }
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let mut selection = Selection::default();
+
+    let pos = vec2(50.0, 25.0);
+    ` ./hit-test.sh ${v}hit_ `
+    ` ./select.sh ${v}sel_ `
+
+    // the line is the node being edited (EDIT_COLOR)
+    assert_eq!(selection.ids.last(), Some(&5));
+    assert_eq!(doc.nodes[5].tag, "line");
+}
+
+// TDD TEST 5 - SWIMLANE SELECT DO NOT PRIORITIZED OVER INNER COMPONENTS
+#[test]
+fn tdd_05_a_swimlane_loses_the_click_to_a_line_inside_it() {
+    let svg_text = SVG_EX;
+    ` ./svg-load.sh ${v}load_ `
+    // rect mode, then line mode, as the old test drew them
+    let mut from: Option<Vec2> = None;
+    for click in [(10.0, 10.0), (300.0, 500.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-rect.sh ${v}rect_ `
+    }
+    for click in [(15.0, 15.0), (295.0, 15.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-line.sh ${v}line_ `
+    }
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    assert_eq!(doc.nodes.len(), 7);
+
+    let pos = vec2(20.0, 15.0);
+    ` ./hit-test.sh ${v}hit_ `
+
+    // the line, not the swimlane drawn before it
+    assert_eq!(hit, Some(6));
+}
+
+#[test]
+fn a_rect_that_isnt_a_swimlane_keeps_the_click_in_document_order() {
+    // 140 by 90: not a swimlane, so it still wins over the line drawn after
+    // it (until nearest-edge selection, step 26)
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    for click in [(10.0, 10.0), (150.0, 100.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-rect.sh ${v}rect_ `
+    }
+    for click in [(15.0, 15.0), (140.0, 15.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-line.sh ${v}line_ `
+    }
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+
+    let pos = vec2(20.0, 15.0);
+    ` ./hit-test.sh ${v}hit_ `
+    assert_eq!(hit, Some(0));
+}
+
+// TDD TEST 7 - MODE TWO CLICK TWICE CREATES ARROW
+#[test]
+fn tdd_07_mode_2_two_clicks_create_an_arrow() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+
+    let pos = vec2(15.0, 15.0);
+    ` ./add-arrow.sh ${v}arrow_ `
+    assert_eq!(from, Some(vec2(15.0, 15.0)));
+    assert_eq!(doc.nodes.len(), 0);
+
+    // a slight offset gets corrected: x 18 -> 15
+    let pos = vec2(18.0, 100.0);
+    ` ./add-arrow.sh ${v}arrow_ `
+    assert_eq!(from, None);
+    assert_eq!(doc.nodes.len(), 1);
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(
+        xml,
+        r#"<polyline points="15 15 15 100 5 90 15 100 25 90" stroke="black" fill="transparent" stroke-width="1"/>"#
+    );
+}
+
+#[test]
+fn an_arrow_close_to_level_comes_out_level() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    for click in [(10.0, 50.0), (100.0, 60.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-arrow.sh ${v}arrow_ `
+    }
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert!(xml.starts_with(r#"<polyline points="10 50 100 50 "#), "{}", xml);
+}
+
+#[test]
+fn a_diagonal_arrow_gets_the_same_head() {
+    // arms at 45 degrees, 10 * sqrt(2) long, rounded to whole numbers
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    for click in [(0.0, 0.0), (100.0, 50.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-arrow.sh ${v}arrow_ `
+    }
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(
+        xml,
+        r#"<polyline points="0 0 100 50 87 54 100 50 96 37" stroke="black" fill="transparent" stroke-width="1"/>"#
+    );
+
+    // and pointing up and left
+    let mut from: Option<Vec2> = None;
+    for click in [(100.0, 100.0), (40.0, 20.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-arrow.sh ${v}arrow_ `
+    }
+    let id = 1;
+    ` ./node-xml.sh ${v}xml_ `
+    assert!(xml.contains(r#"points="100 100 40 20 54 22 40 20 38 34""#), "{}", xml);
+}
+
+#[test]
+fn rect_mode_two_clicks_create_a_rect() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+
+    let pos = vec2(10.0, 20.0);
+    ` ./add-rect.sh ${v}rect_ `
+    assert_eq!(doc.nodes.len(), 0);
+    let pos = vec2(110.4, 70.6);
+    ` ./add-rect.sh ${v}rect_ `
+    assert_eq!(from, None);
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(
+        xml,
+        r#"<rect rx="0" ry="0" x="10" y="20" width="100" height="51" stroke="black" fill="transparent" stroke-width="1"/>"#
+    );
+}
+
+#[test]
+fn a_rect_drawn_up_and_left_has_a_positive_size() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    for click in [(300.0, 500.0), (10.0, 10.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-rect.sh ${v}rect_ `
+    }
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert!(xml.contains(r#"x="10" y="10" width="290" height="490""#), "{}", xml);
+}
+
 EOF
