@@ -66,6 +66,8 @@ const NOTICE_BG: Color = Color::new(0.0, 1.0, 0.0, 0.6);
 const NOTICE_TEXT: Color = Color::new(1.0, 1.0, 1.0, 1.0);
 const NOTICE_PX: u16 = 64;
 const MODE_NOTICE_SECS: f64 = 3.0;
+// how many changes a page can undo; older ones are dropped
+const UNDO_LIMIT: usize = 100;
 
 // selection is shown by recoloring a node's stroke: the node being edited
 // (the last one selected) in EDIT_COLOR (#CAFFB5), the others in SEL_COLOR
@@ -175,6 +177,23 @@ struct Node {
 struct Selection {
     ids: Vec<usize>,
     group: Option<usize>,
+}
+
+// a page's undo history: snapshots of its Doc, the newest last. A change
+// pushes the page as it was onto undo and clears redo (history-push.sh);
+// undo and redo move the page between the two (history-step.sh).
+#[derive(Clone, Debug, Default, PartialEq)]
+struct History {
+    undo: Vec<Doc>,
+    redo: Vec<Doc>,
+}
+
+// what a Ctrl key chord asks for (ctrl-keys.sh)
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum CtrlAction {
+    Undo,
+    Redo,
+    SelectAll,
 }
 
 // what an open editor is editing
