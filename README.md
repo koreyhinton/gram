@@ -40,6 +40,8 @@ gram edits text in your editor: `$GRAM_EDITOR`, else `$VISUAL`, else `$EDITOR`, 
 
 Without `M-x server-start`, emacsclient fails at once with "can't find socket", and gram shows that in its banner. `GRAM_EDITOR=emacs` needs no server, but starts a new Emacs for every edit, which you quit to finish (`C-x C-c`).
 
+With no editor set, `xdg-open` hands the node to your desktop's text editor and returns at once. gram then watches the node file instead: save it in the text editor and gram applies the edit (Esc stops watching).
+
 ## Using gram
 
 | | |

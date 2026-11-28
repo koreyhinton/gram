@@ -99,6 +99,9 @@ const SWIMLANE_H: f32 = 300.0;
 const DROP_CONFIRM_SECS: f64 = 3.0;
 // after an edit is dropped, how long the banner says so
 const DROPPED_NOTE_SECS: f64 = 5.0;
+// an editor that exits within this many seconds of starting handed the file
+// to another program (xdg-open, emacsclient -n): gram keeps watching the file
+const HANDOFF_SECS: f64 = 2.0;
 
 // the two arm ends of an arrowhead at tip, for a shaft coming from from: each
 // ARROW_ARM back along the shaft, turned 45 degrees to either side, rounded
@@ -230,6 +233,19 @@ enum CtrlAction {
     SelectAll,
 }
 
+// what a node edit's file says this frame (node-edit-check.sh)
+#[derive(Clone, Debug, PartialEq)]
+enum NodeEditOutcome {
+    // nothing to do yet
+    Wait,
+    // the editor finished without changing it
+    Unchanged,
+    // the edited XML, to apply
+    Apply(String),
+    // the file couldn't be read
+    Failed(String),
+}
+
 // what an open editor is editing
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum EditKind {
@@ -262,6 +278,9 @@ struct EditJob {
     // when Esc was first pressed while the editor was open (edit-escape.sh):
     // a second Esc soon after drops the edit
     warned_at: Option<f64>,
+    // a node edit whose editor handed the file off and returned at once:
+    // gram watches node.xml for a save instead (node-edit-check.sh)
+    watching: bool,
 }
 
 // one svg file: the root <svg> element's attributes, then its elements in

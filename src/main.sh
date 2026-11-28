@@ -37,6 +37,13 @@ export ${v}poll_Failed=failed
 export ${v}watch_Path=job.path.as_path\(\)
 export ${v}watch_Stamp=job.stamp
 export ${v}watch_Changed=changed
+export ${v}check_Path=job.path.as_path\(\)
+export ${v}check_Written=job.written.as_str\(\)
+export ${v}check_Exited=exited
+export ${v}check_Elapsed=elapsed
+export ${v}check_Saved=changed
+export ${v}check_Watching=job.watching
+export ${v}check_Outcome=outcome
 
 # a node edit: the node out as XML, the edit back in, carried over to the
 # other selected nodes, then the page's boxes and R-tree again
@@ -285,12 +292,21 @@ cat << EOF
                 if let Some(reason) = failed {
                     job.error = Some(reason);
                 }
-                if job.kind == EditKind::Node && exited && job.error.is_none() {
-                    match std::fs::read_to_string(&job.path) {
-                        // unchanged: nothing to apply
-                        Ok(text) if text == job.written => done = true,
-                        Ok(text) => edited = Some(text),
-                        Err(err) => job.error = Some(err.to_string()),
+                // a node edit: its file when the editor exits, or, if the
+                // editor handed it off (xdg-open), on the first save. The
+                // file's stamp is kept every frame so only a later save counts.
+                if job.kind == EditKind::Node && job.error.is_none() {
+                    ` ./file-watch.sh ${v}watch_ `
+
+                    let elapsed = get_time() - job.started;
+
+                    ` ./node-edit-check.sh ${v}check_ `
+
+                    match outcome {
+                        NodeEditOutcome::Wait => {}
+                        NodeEditOutcome::Unchanged => done = true,
+                        NodeEditOutcome::Apply(text) => edited = Some(text),
+                        NodeEditOutcome::Failed(err) => job.error = Some(err),
                     }
                 }
                 if job.kind == EditKind::File {
@@ -298,7 +314,7 @@ cat << EOF
                     reload = changed;
                     // stop with the editor, unless it handed the file off and
                     // returned at once; then keep watching until Esc
-                    done = exited && job.error.is_none() && get_time() - job.started > 2.0;
+                    done = exited && job.error.is_none() && get_time() - job.started > HANDOFF_SECS;
                 }
             }
 
@@ -444,7 +460,7 @@ cat << EOF
 
             // R: a refused node edit goes back to the editor, as it was left
             let reopen = presses.contains(&KeyCode::R)
-                && ws.edit.as_ref().is_some_and(|job| job.kind == EditKind::Node && job.child.is_none());
+                && ws.edit.as_ref().is_some_and(|job| job.kind == EditKind::Node && job.child.is_none() && job.error.is_some());
             if reopen && let Some(job) = ws.edit.as_mut() {
                 let path = job.path.clone();
 
@@ -454,6 +470,7 @@ cat << EOF
                 job.child = child;
                 job.error = open_error;
                 job.started = get_time();
+                job.watching = false;
                 lost_releases = get_keys_down().into_iter().collect();
             }
 
@@ -507,6 +524,7 @@ cat << EOF
                     error: written.err().map(|err| err.to_string()).or(open_error),
                     started: get_time(),
                     warned_at: None,
+                    watching: false,
                 });
             }
 
@@ -539,6 +557,7 @@ cat << EOF
                         error: open_error,
                         started: get_time(),
                         warned_at: None,
+                        watching: false,
                     };
                     // the first look, so only later saves count
                     {
@@ -706,6 +725,12 @@ cat << EOF
                     (_, _, Some(err)) => format!("{}  -  Esc: close", err),
                     _ if job.warned_at.is_some_and(|at| get_time() - at < DROP_CONFIRM_SECS) => {
                         "an edit is open in your editor: finish it there (C-x #), or press Esc again to drop it".to_string()
+                    }
+                    (EditKind::Node, false, None) if job.watching => {
+                        format!(
+                            "watching {} for a save  -  Esc: stop",
+                            job.path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default()
+                        )
                     }
                     (EditKind::Node, _, None) => {
                         format!("editing the <{}> in your editor: close it to apply the edit", tag)

@@ -88,7 +88,8 @@ for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-pa
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
     node-apply map banner mode-notice hud-hints key-presses select-group transform-note \
-    add-line history-push history-step select-all ctrl-keys add-arrow add-rect edit-escape; do
+    add-line history-push history-step select-all ctrl-keys add-arrow add-rect edit-escape \
+    node-edit-check; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -407,6 +408,20 @@ mutant bug "while editing the hints don't say how to drop the edit" src/hud-hint
     's/        _ if \${!editing} => /        _ if false => /'
 mutant bug "while editing the hints offer undo" src/hud-hints.sh \
     's/let \${!hints} = if \${!undo} \&\& !\${!editing} {/let ${!hints} = if ${!undo} {/'
+
+# ---- a node edit handed to an editor that returns at once (xdg-open) ----
+mutant bug "a hand-off editor ends the edit at once" src/node-edit-check.sh \
+    's/            Ok(_) if !\${!watching} \&\& \${!elapsed} >= HANDOFF_SECS => /            Ok(_) if !${!watching} => /'
+mutant bug "a slow editor that changed nothing keeps the edit open" src/node-edit-check.sh \
+    '/            Ok(_) if !\${!watching} \&\& \${!elapsed} >= HANDOFF_SECS => /d'
+mutant bug "a save after a hand-off isn't read" src/node-edit-check.sh \
+    's/ || (\${!watching} \&\& \${!saved});/;/'
+mutant bug "the file is read while the editor is still open" src/node-edit-check.sh \
+    's/(\${!exited} \&\& !\${!watching})/(!${!watching})/'
+mutant bug "a save that leaves the file as written is applied" src/node-edit-check.sh \
+    's/            Ok(text) if text != \${!written} => /            Ok(text) => /'
+mutant bug "an unreadable node file is ignored" src/node-edit-check.sh \
+    's/            Err(err) => \${!outcome} = NodeEditOutcome::Failed(err\.to_string()),/            Err(_) => {}/'
 
 # ---- <g> groups ----
 mutant bug "a right-click outside any group selects the clicked node" src/select-group.sh \
