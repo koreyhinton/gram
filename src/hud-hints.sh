@@ -13,8 +13,10 @@
 # With a selection: that Enter edits the node being edited (the last one
 # selected, named by its tag), that a second click deselects a node, and
 # that Esc deselects all. With a group selected: that Enter moves the group
-# and a right-click goes to the group above. In line, arrow or rect mode (1,
-# 2, 3): that two clicks draw one, and how to get back to select mode. With
+# and a right-click goes to the group above. In a two-click mode (1 line, 2
+# arrow, 3 rect, 4 rounded rect, 8 fork/join bar): that two clicks draw one;
+# in a one-click mode (5 decision, 6 initial, 7 final node, 9 text): that a
+# click places one; either way, how to get back to select mode. With
 # something to undo, they end with ", Ctrl-Z: undo". While an edit is open in
 # the editor, only how to finish or drop it (the canvas is locked).
 
@@ -32,12 +34,23 @@ cat << EOF
         .map(|node| node.tag.as_str());
     let ${!hints} = match (${v}editing_tag, ${!selection}.group) {
         _ if ${!editing} => "finish the edit in your editor, or Esc twice: drop it".to_string(),
-        _ if (1..=3).contains(&${!mode}) => format!(
+        _ if [1, 2, 3, 4, 8].contains(&${!mode}) => format!(
             "click twice: draw {}, Esc: drop the first click, 0: select mode, wheel: zoom, middle-drag or space+drag: pan, F: fit",
             match ${!mode} {
                 1 => "a line",
                 2 => "an arrow",
-                _ => "a rect",
+                3 => "a rect",
+                4 => "a rounded rect",
+                _ => "a fork/join bar",
+            }
+        ),
+        _ if [5, 6, 7, 9].contains(&${!mode}) => format!(
+            "click: place {}, 0: select mode, wheel: zoom, middle-drag or space+drag: pan, F: fit",
+            match ${!mode} {
+                5 => "a decision node",
+                6 => "an initial node",
+                7 => "a final node",
+                _ => "a text (it opens in your editor)",
             }
         ),
         (Some(tag), Some(_)) => format!(

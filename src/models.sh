@@ -99,6 +99,16 @@ const SWIMLANE_H: f32 = 300.0;
 const DROP_CONFIRM_SECS: f64 = 3.0;
 // after an edit is dropped, how long the banner says so
 const DROPPED_NOTE_SECS: f64 = 5.0;
+// the one-click nodes (devbox@01c476e): a decision node's diamond reaches
+// this far from the click each way (14 by 14; CT/58's standard size is still
+// to be decided), an initial node's circle, and a final node's dot and ring
+const DECISION_HALF: f32 = 7.0;
+const INITIAL_R: f32 = 10.0;
+const FINAL_DOT_R: f32 = 6.0;
+const FINAL_RING_R: f32 = 10.0;
+// a new text's "?" sits this far from the click, so it lands under the cursor
+const TEXT_OFFSET: Vec2 = vec2(-7.0, 3.0);
+
 // an editor that exits within this many seconds of starting handed the file
 // to another program (xdg-open, emacsclient -n): gram keeps watching the file
 const HANDOFF_SECS: f64 = 2.0;

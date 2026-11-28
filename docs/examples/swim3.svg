@@ -1,0 +1,9 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="750" height="750" viewBox="0,0,750,750">
+    <text x="81" y="34" fill="black">Users</text>
+    <text x="312" y="34" fill="black">Web Service</text>
+    <text x="549" y="34" fill="black">Developers</text>
+    <line x1="3" y1="55" x2="730" y2="55" stroke="black" stroke-width="1"/>
+    <rect rx="0" ry="0" x="489" y="3" width="240" height="745" stroke="black" fill="transparent" stroke-width="1"/>
+    <rect rx="0" ry="0" x="246" y="3" width="240" height="745" stroke="black" fill="transparent" stroke-width="1"/>
+    <rect rx="0" ry="0" x="3" y="3" width="240" height="745" stroke="black" fill="transparent" stroke-width="1"/>
+</svg>

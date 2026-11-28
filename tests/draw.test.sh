@@ -26,6 +26,16 @@
 #       any direction (x and y the smaller corner).
 #   hit-test.sh  a swimlane (a rect whose click box is over 200 wide and 300
 #       high) comes after every other shape, so what's inside it wins.
+#   add-line.sh and add-rect.sh take Width ("1", or "3" for a fork/join bar)
+#       and Radius ("0", or "10" for a rounded rect) (devbox@01c476e).
+#   add-node.sh  binds Pos, Mode and Nodes. One click places, centered on it:
+#       mode 5 a decision node (a diamond polyline, 7 out each way), mode 6 an
+#       initial node (a filled r=10 circle), mode 7 a final node (a filled
+#       r=6 dot, then a hollow r=10 ring).
+#   add-text.sh  binds Pos, Nodes, Selection, Mode and Open. One click places
+#       <text x y fill="black">?</text> 7 left and 3 below it, selects only
+#       it, goes back to mode 0 and sets Open (declared here) so the caller
+#       opens it in the editor.
 
 : "${NSMAP:?set NSMAP (see test.sh)}"
 
@@ -46,6 +56,8 @@ export ${v}hit_Hit=hit
 export ${v}line_Nodes=doc.nodes
 export ${v}line_Pos=pos
 export ${v}line_From=from
+export ${v}line_Width=width
+export ${v}rect_Radius=radius
 export ${v}arrow_Nodes=doc.nodes
 export ${v}arrow_Pos=pos
 export ${v}arrow_From=from
@@ -53,6 +65,14 @@ export ${v}rect_Nodes=doc.nodes
 export ${v}rect_Pos=pos
 export ${v}rect_From=from
 export ${v}sel_Selection=selection
+export ${v}node_Pos=pos
+export ${v}node_Mode=mode
+export ${v}node_Nodes=doc.nodes
+export ${v}text_Pos=pos
+export ${v}text_Nodes=doc.nodes
+export ${v}text_Selection=selection
+export ${v}text_Mode=mode
+export ${v}text_Open=open
 export ${v}sel_Hit=hit
 export ${v}xml_Node=\(\&doc.nodes[id]\)
 export ${v}xml_Xml=xml
@@ -89,6 +109,7 @@ fn tdd_02_line_mode_two_clicks_create_a_line() {
     let svg_text = SVG_EX;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
 
     // the first click only starts the line
     let pos = vec2(25.0, 25.0);
@@ -112,6 +133,7 @@ fn a_drawn_line_can_be_clicked() {
     let svg_text = SVG_EX;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(25.0, 25.0), (25.0, 519.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-line.sh ${v}line_ `
@@ -132,6 +154,7 @@ fn a_line_ends_on_whole_numbers() {
     let svg_text = r#"<svg></svg>"#;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(10.4, 20.6), (30.5, 40.49)] {
         let pos = vec2(click.0, click.1);
         ` ./add-line.sh ${v}line_ `
@@ -146,6 +169,7 @@ fn each_pair_of_clicks_draws_its_own_line() {
     let svg_text = r#"<svg></svg>"#;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(0.0, 0.0), (10.0, 0.0), (20.0, 5.0), (20.0, 15.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-line.sh ${v}line_ `
@@ -165,6 +189,7 @@ fn tdd_03_mode_0_can_click_to_select_a_line() {
     let svg_text = SVG_EX;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(25.0, 25.0), (250.0, 25.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-line.sh ${v}line_ `
@@ -189,6 +214,7 @@ fn tdd_05_a_swimlane_loses_the_click_to_a_line_inside_it() {
     ` ./svg-load.sh ${v}load_ `
     // rect mode, then line mode, as the old test drew them
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(10.0, 10.0), (300.0, 500.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-rect.sh ${v}rect_ `
@@ -215,6 +241,7 @@ fn a_rect_that_isnt_a_swimlane_keeps_the_click_in_document_order() {
     let svg_text = r#"<svg></svg>"#;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(10.0, 10.0), (150.0, 100.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-rect.sh ${v}rect_ `
@@ -237,6 +264,7 @@ fn tdd_07_mode_2_two_clicks_create_an_arrow() {
     let svg_text = r#"<svg></svg>"#;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
 
     let pos = vec2(15.0, 15.0);
     ` ./add-arrow.sh ${v}arrow_ `
@@ -261,6 +289,7 @@ fn an_arrow_close_to_level_comes_out_level() {
     let svg_text = r#"<svg></svg>"#;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(10.0, 50.0), (100.0, 60.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-arrow.sh ${v}arrow_ `
@@ -276,6 +305,7 @@ fn a_diagonal_arrow_gets_the_same_head() {
     let svg_text = r#"<svg></svg>"#;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(0.0, 0.0), (100.0, 50.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-arrow.sh ${v}arrow_ `
@@ -289,6 +319,7 @@ fn a_diagonal_arrow_gets_the_same_head() {
 
     // and pointing up and left
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(100.0, 100.0), (40.0, 20.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-arrow.sh ${v}arrow_ `
@@ -303,6 +334,7 @@ fn rect_mode_two_clicks_create_a_rect() {
     let svg_text = r#"<svg></svg>"#;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
 
     let pos = vec2(10.0, 20.0);
     ` ./add-rect.sh ${v}rect_ `
@@ -323,6 +355,7 @@ fn a_rect_drawn_up_and_left_has_a_positive_size() {
     let svg_text = r#"<svg></svg>"#;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(300.0, 500.0), (10.0, 10.0)] {
         let pos = vec2(click.0, click.1);
         ` ./add-rect.sh ${v}rect_ `
@@ -330,6 +363,169 @@ fn a_rect_drawn_up_and_left_has_a_positive_size() {
     let id = 0;
     ` ./node-xml.sh ${v}xml_ `
     assert!(xml.contains(r#"x="10" y="10" width="290" height="490""#), "{}", xml);
+}
+
+
+// ---- devbox@01c476e: rounded rects, decision, initial and final nodes,
+// fork/join bars and text ----
+
+// TDD TEST 8 - MODE FOUR CLICK TWICE CREATES ROUNDED RECT
+#[test]
+fn tdd_08_mode_4_two_clicks_create_a_rounded_rect() {
+    let (h_expect, y1) = (66.0, 30.0);
+    let svg_text = SVG_EX;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "10");
+    for click in [(30.0, y1), (90.0, h_expect + y1)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-rect.sh ${v}rect_ `
+    }
+    let id = 5;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(
+        xml,
+        r#"<rect rx="10" ry="10" x="30" y="30" width="60" height="66" stroke="black" fill="transparent" stroke-width="1"/>"#
+    );
+}
+
+// TDD TEST 10 - MODE FIVE CLICK ONCE PLACES DECISION NODE
+#[test]
+fn tdd_10_mode_5_click_once_places_a_decision_node() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mode = 5u8;
+    let pos = vec2(26.0 + 7.0, 31.0);
+
+    ` ./add-node.sh ${v}node_ `
+
+    assert_eq!(doc.nodes.len(), 1);
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(
+        xml,
+        r#"<polyline points="26 31 33 24 40 31 33 38 26 31" stroke="black" fill="transparent" stroke-width="1"/>"#
+    );
+}
+
+// TDD TEST 11 - MODE SIX CLICK ONCE PLACES INITIAL NODE
+#[test]
+fn tdd_11_mode_6_click_once_places_an_initial_node() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mode = 6u8;
+    let pos = vec2(139.0, 40.0);
+
+    ` ./add-node.sh ${v}node_ `
+
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(xml, r#"<circle cx="139" cy="40" r="10" fill="black" stroke="black" stroke-width="1"/>"#);
+}
+
+// TDD TEST 12 - MODE SEVEN CLICK ONCE PLACES FINAL NODE
+#[test]
+fn tdd_12_mode_7_click_once_places_a_final_node() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mode = 7u8;
+    let pos = vec2(80.0, 400.0);
+
+    ` ./add-node.sh ${v}node_ `
+
+    assert_eq!(doc.nodes.len(), 2);
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(xml, r#"<circle cx="80" cy="400" r="6" fill="black" stroke="black" stroke-width="1"/>"#);
+    let id = 1;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(xml, r#"<circle cx="80" cy="400" r="10" fill="transparent" stroke="black" stroke-width="1"/>"#);
+}
+
+#[test]
+fn a_final_nodes_dot_and_ring_can_each_be_clicked() {
+    // the old app put the dot first "in order to allow clicking and
+    // selecting both"
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mode = 7u8;
+    let pos = vec2(80.0, 400.0);
+    ` ./add-node.sh ${v}node_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+
+    let pos = vec2(80.0, 400.0);
+    ` ./hit-test.sh ${v}hit_ `
+    assert_eq!(hit, Some(0));
+    let pos = vec2(89.0, 400.0);
+    ` ./hit-test.sh ${v}hit_ `
+    assert_eq!(hit, Some(1));
+}
+
+#[test]
+fn other_modes_place_no_node() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    for mode in [0u8, 1, 4, 9] {
+        let pos = vec2(80.0, 400.0);
+        ` ./add-node.sh ${v}node_ `
+    }
+    assert_eq!(doc.nodes.len(), 0);
+}
+
+// TDD TEST 13 - MODE EIGHT CLICK TWICE PLACES JOIN/FORK NODE
+#[test]
+fn tdd_13_mode_8_two_clicks_place_a_fork_join_bar() {
+    let svg_text = r#"<svg></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    let (width, radius) = ("3", "0");
+    for click in [(80.0, 400.0), (150.0, 400.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-line.sh ${v}line_ `
+    }
+    let id = 0;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(xml, r#"<line x1="80" y1="400" x2="150" y2="400" stroke="black" stroke-width="3"/>"#);
+}
+
+// TDD TEST 14 - MODE NINE CLICK OPENS (SINGLE-NODE) EDITOR
+#[test]
+fn tdd_14_mode_9_click_places_a_text_and_opens_it() {
+    let svg_text = SVG_EX;
+    ` ./svg-load.sh ${v}load_ `
+    // something already selected, in text mode
+    let mut selection = Selection { ids: vec![0, 2], group: Some(9) };
+    let mut mode = 9u8;
+    // (declared by add-text.sh; here too, so a missing snippet fails, not breaks the build)
+    let mut open = false;
+
+    let pos = vec2(400.0, 80.0);
+    ` ./add-text.sh ${v}text_ `
+
+    let id = 5;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(xml, r#"<text x="393" y="83" fill="black">?</text>"#);
+    // the new text alone is selected, back in select mode, and opens
+    assert_eq!(selection, Selection { ids: vec![5], group: None });
+    assert_eq!(mode, 0);
+    assert!(open);
+}
+
+#[test]
+fn the_swim3_example_opens_with_lanes_that_lose_clicks_to_the_header_line() {
+    // the old swim3 template (devbox@01c476e), as docs/examples/swim3.svg
+    let svg_text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/examples/swim3.svg")).unwrap();
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    assert_eq!(error, None);
+    assert_eq!(doc.nodes.len(), 7);
+
+    // the header line runs across all three lanes
+    let pos = vec2(100.0, 55.0);
+    ` ./hit-test.sh ${v}hit_ `
+    assert_eq!(hit, Some(3));
 }
 
 EOF
