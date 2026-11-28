@@ -9,14 +9,15 @@
 #       PAGE_H, with a border 2 screen pixels thick.
 #   draw-hud.sh   binds Canvas, Title and Hints. The hints, then a line with
 #       the title, the zoom in percent and the world point under the mouse.
-#   hud-hints.sh  binds Doc, Selection and Hints. With a selection, that
-#       Enter edits the last selected node (by tag), a second click
+#   hud-hints.sh  binds Doc, Selection, Mode and Hints. With a selection,
+#       that Enter edits the last selected node (by tag), a second click
 #       deselects, and Esc deselects all; without one, how to select, zoom,
-#       pan and fit.
+#       pan and fit. In line mode (1), that two clicks draw a line.
 #   banner.sh     binds Text. The text on a BANNER_BG box sized to it, across
 #       the top of the canvas, right of the tree.
-#   mode-notice.sh  binds Mode and Since. "0 => Select Mode" or "N => Coming
-#       Soon", top right, until MODE_NOTICE_SECS have passed.
+#   mode-notice.sh  binds Mode and Since. "0 => Select Mode", "1 => Line
+#       Mode" or "N => Coming Soon", top right, until MODE_NOTICE_SECS have
+#       passed.
 
 : "${NSMAP:?set NSMAP (see test.sh)}"
 
@@ -30,6 +31,7 @@ export ${v}hud_Title=title
 export ${v}hud_Hints=hints
 export ${v}hints_Doc=doc
 export ${v}hints_Selection=selection
+export ${v}hints_Mode=mode
 export ${v}hints_Hints=hints
 export ${v}banner_Text=message
 export ${v}notice_Mode=mode
@@ -163,6 +165,11 @@ fn a_mode_change_says_so_for_a_few_seconds() {
         other => panic!("{:?}", other),
     }
 
+    // the old notifyTextArr (devbox@ed1a227)
+    let mode = 1u8;
+    ` ./mode-notice.sh ${v}notice_ `
+    assert!(drawn().contains(&Drawn::Text { text: "1 => Line Mode".to_string() }), "{:?}", drawn());
+
     let mode = 4u8;
     let since = MODE_NOTICE_SECS - 0.01;
     ` ./mode-notice.sh ${v}notice_ `
@@ -175,6 +182,7 @@ fn a_mode_change_says_so_for_a_few_seconds() {
 
 #[test]
 fn the_hints_say_how_to_edit_once_something_is_selected() {
+    let mode = 0u8;
     let doc = Doc {
         root_attrs: vec![],
         nodes: ["circle", "rect"]
@@ -202,5 +210,14 @@ fn the_hints_say_how_to_edit_once_something_is_selected() {
     let selection = Selection { ids: vec![0, 1], group: Some(7) };
     ` ./hud-hints.sh ${v}hints_ `
     assert!(hints.starts_with("Enter: edit the <rect> (the group moves with it), right-click: the group above"), "{}", hints);
+}
+
+#[test]
+fn the_hints_say_how_to_draw_a_line_in_line_mode() {
+    let doc = Doc::default();
+    let selection = Selection::default();
+    let mode = 1u8;
+    ` ./hud-hints.sh ${v}hints_ `
+    assert!(hints.starts_with("click twice: draw a line"), "{}", hints);
 }
 EOF
