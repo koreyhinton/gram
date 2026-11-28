@@ -89,7 +89,7 @@ for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-pa
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
     node-apply map banner mode-notice hud-hints key-presses select-group transform-note \
     add-line history-push history-step select-all ctrl-keys add-arrow add-rect edit-escape \
-    node-edit-check add-node add-text arrow-delta nudge; do
+    node-edit-check add-node add-text arrow-delta nudge doc-xml page-save copy-ready; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -117,7 +117,7 @@ mutant bug "the root's attributes are lost" src/svg-load.sh \
 mutant bug "a node's parent is lost" src/svg-load.sh \
     's/parent: \${v}open\.last()\.copied()\.flatten(),/parent: None,/'
 mutant bug "an end tag doesn't close its element" src/svg-load.sh \
-    '/\${v}open\.pop();/d'
+    's/                match \${v}open\.pop() {/                match ${v}open.last().copied() {/'
 mutant bug "elements with no shape are clickable" src/spatial-index.sh \
     's/if SHAPE_TAGS\.contains(\&\${v}node\.tag\.as_str()) {/if true {/'
 mutant bug "the index skips the first node" src/spatial-index.sh \
@@ -208,6 +208,9 @@ mutant bug "the sort minds case" src/tree-scan.sh \
     's/key\.push((is_file, name\.to_lowercase(), name\.clone()));/key.push((is_file, name.clone(), name.clone()));/'
 mutant bug "hidden entries are listed" src/tree-scan.sh \
     "s/let hidden = item\.file_name()\.to_string_lossy()\.starts_with('\.');/let hidden = false;/"
+# act.svg@e1fd4b7 (step 16): its test run took in Emacs' leftovers
+mutant bug "editor leftovers named like a page are listed" src/tree-scan.sh \
+    's/                \.is_some_and(|ext| ext\.to_string_lossy()\.eq_ignore_ascii_case("svg"));/                .is_some() \&\& path.to_string_lossy().contains(".svg");/'
 mutant bug "symlinked folders are followed" src/tree-scan.sh \
     's/Ok(kind) => (kind\.is_dir(), kind\.is_symlink()),/Ok(kind) => (item.path().is_dir(), kind.is_symlink()),/'
 mutant bug "a folded folder's rows still take clicks" src/tree-click.sh \
@@ -488,6 +491,58 @@ mutant bug "the hints don't say the arrows move" src/hud-hints.sh \
 # the Pins and Connectors templates (steps 11 and 12), kept as examples
 mutant bug "the pins example lost its final node's dot" docs/examples/pins.svg \
     '/<circle cx="696" cy="131" r="6"/d'
+
+# ---- save and copy the page (act.svg@df9a465, step 16) ----
+# TDDTEST19 FTR, TDDTEST20 FTR: Ctrl-S and Ctrl-Shift-C
+mutant bug "Ctrl-S does nothing" src/ctrl-keys.sh \
+    '/                KeyCode::S => /d'
+mutant bug "Ctrl-Shift-C does nothing" src/ctrl-keys.sh \
+    '/                KeyCode::C if /d'
+mutant bug "Ctrl-C alone copies the page" src/ctrl-keys.sh \
+    's/                KeyCode::C if \${!shift} => /                KeyCode::C => /'
+mutant bug "the hints never say Ctrl-S" src/hud-hints.sh \
+    's/let \${!hints} = if \${!dirty} \&\& !\${!editing} {/let ${!hints} = if false {/'
+mutant bug "while editing the hints say Ctrl-S" src/hud-hints.sh \
+    's/let \${!hints} = if \${!dirty} \&\& !\${!editing} {/let ${!hints} = if ${!dirty} {/'
+# macroquad's UI overwrites the clipboard while Ctrl+C or Ctrl+X is held
+mutant bug "a copy goes out while Ctrl-C is still held" src/copy-ready.sh \
+    's/ \&\& !(\${!ctrl} \&\& (\${!c} || \${!x}));/;/'
+mutant bug "a copy waits only for C, not X" src/copy-ready.sh \
+    's/(\${!c} || \${!x})/${!c}/'
+mutant bug "a copy waits for C and Ctrl both to be let go" src/copy-ready.sh \
+    's/!(\${!ctrl} \&\& (\${!c} || \${!x}))/!(${!ctrl} || ${!c} || ${!x})/'
+# the old download wrote a data: URI cut at the first '#'
+mutant bug "a save stops at the first #" src/page-save.sh \
+    's/std::fs::write(\&tmp, \${!xml})/std::fs::write(\&tmp, ${!xml}.split(\x27#\x27).next().unwrap_or(""))/'
+mutant bug "a save writes straight into the file" src/page-save.sh \
+    's/std::fs::write(\&tmp, \${!xml})\.and_then(|_| std::fs::rename(\&tmp, \${!path}))/std::fs::write(${!path}, ${!xml})/'
+mutant bug "a failed save leaves its .tmp behind" src/page-save.sh \
+    '/                let _ = std::fs::remove_file(\&tmp);/d'
+# writing the page back as the file had it
+mutant bug "the prolog before <svg> is lost" src/svg-load.sh \
+    's/                \${!doc}\.head = lead + \&\${v}raw;/                ${!doc}.head = ${v}raw.clone();/'
+mutant bug "whitespace and comments between tags are lost" src/svg-load.sh \
+    's/        if \${v}element\.is_none() \&\& !\${v}is_end {/        if false {/'
+mutant bug "a node doesn't remember its text" src/svg-load.sh \
+    '/            src\.text = node\.text\.clone();/d'
+mutant bug "unchanged start tags are written fresh" src/doc-xml.sh \
+    's/            \&\& src\.attrs == node\.attrs/            \&\& false/'
+mutant bug "a changed node is written as it was" src/doc-xml.sh \
+    '/            \&\& src\.attrs == node\.attrs/d'
+mutant bug "an edited text keeps its old text" src/doc-xml.sh \
+    's/            Some(src) if src\.tag == node\.tag \&\& src\.text == node\.text => src\.end\.clone(),/            Some(src) if src.tag == node.tag => src.end.clone(),/'
+mutant bug "a renamed group keeps its old end tag" src/doc-xml.sh \
+    's/                format!("{}<\/{}>", ws, node\.tag)/                src.end.clone()/'
+mutant bug "the text before a node is dropped" src/doc-xml.sh \
+    's/            Some(src) => src\.lead\.clone(),/            Some(src) => String::new(),/'
+mutant bug "groups are flattened" src/doc-xml.sh \
+    's/            \&\& Some(top) != node\.parent/            \&\& true/'
+mutant bug "a drawn node gets no line of its own" src/doc-xml.sh \
+    's/^        \${!xml}\.push_str(\&lead);$/        if node.src.is_some() { ${!xml}.push_str(\&lead); }/'
+mutant bug "an empty <svg/> isn't opened up for new nodes" src/doc-xml.sh \
+    's/    let \${v}reopened = .*;/    let ${v}reopened = false;/'
+mutant bug "the end of the file is dropped" src/doc-xml.sh \
+    '/^    \${!xml}\.push_str(\&\${v}tail);$/d'
 
 # ---- a node edit handed to an editor that returns at once (xdg-open) ----
 mutant bug "a hand-off editor ends the edit at once" src/node-edit-check.sh \

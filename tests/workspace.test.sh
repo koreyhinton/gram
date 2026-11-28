@@ -315,6 +315,20 @@ fn hidden_entries_and_folders_without_svgs_are_left_out() {
     assert_eq!(rows(&entries), vec![row("x.SVG", 0, false)]);
 }
 
+// the files an editor or a save leaves next to a page: Emacs' autosave
+// (#a.svg#), backup (a.svg~) and lock (.#a.svg, a dangling symlink), and a
+// save's <file>.tmp (act.svg@e1fd4b7 kept the first two out of its test run)
+#[cfg(unix)]
+#[test]
+fn editor_and_save_leftovers_are_left_out() {
+    let root = folder_with("scan-leftovers", &["a.svg", "#a.svg#", "a.svg~", "a.svg.tmp"]);
+    std::os::unix::fs::symlink("someone@host.1234:1", root.join(".#a.svg")).unwrap();
+
+    ` ./tree-scan.sh ${v}scan_ `
+
+    assert_eq!(rows(&entries), vec![row("a.svg", 0, false)]);
+}
+
 #[cfg(unix)]
 #[test]
 fn a_symlinked_folder_is_not_followed() {

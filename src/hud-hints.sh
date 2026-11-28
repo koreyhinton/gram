@@ -6,6 +6,7 @@
 #   input:   Selection  Selection
 #   input:   Mode       u8, the mode (0-9)
 #   input:   Undo       bool, whether the page has a change to undo
+#   input:   Dirty      bool, whether the page has unsaved changes
 #   input:   Editing    bool, whether an edit is open in the editor
 #   output:  Hints      String (declared here)
 #
@@ -17,12 +18,13 @@
 # arrow, 3 rect, 4 rounded rect, 8 fork/join bar): that two clicks draw one;
 # in a one-click mode (5 decision, 6 initial, 7 final node, 9 text): that a
 # click places one; either way, how to get back to select mode. With
-# something to undo, they end with ", Ctrl-Z: undo". While an edit is open in
+# something to undo, they end with ", Ctrl-Z: undo", and with unsaved
+# changes, ", Ctrl-S: save". While an edit is open in
 # the editor, only how to finish or drop it (the canvas is locked).
 
 v=$1
 # maps
-. ${NSMAP}/bind ${v} Doc Selection Mode Undo Editing Hints
+. ${NSMAP}/bind ${v} Doc Selection Mode Undo Dirty Editing Hints
 
 cat << EOF
 
@@ -68,5 +70,7 @@ cat << EOF
     };
     // undo, once there is something to undo (not while editing: it's locked)
     let ${!hints} = if ${!undo} && !${!editing} { format!("{}, Ctrl-Z: undo", ${!hints}) } else { ${!hints} };
+    // save, once there is something to save
+    let ${!hints} = if ${!dirty} && !${!editing} { format!("{}, Ctrl-S: save", ${!hints}) } else { ${!hints} };
 
 EOF

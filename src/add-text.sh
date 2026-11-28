@@ -34,6 +34,7 @@ cat << EOF
         text: "?".to_string(),
         bounds: Rect::default(),
         parent: None,
+        src: None,
     });
     ${!selection} = Selection { ids: vec![${!nodes}.len() - 1], group: None };
     ${!mode} = 0;
