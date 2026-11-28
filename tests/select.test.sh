@@ -601,7 +601,8 @@ fn lines_follow_the_other_kinds_and_the_other_kinds_follow_lines() {
 
         let moved = &doc.nodes[1];
         match moved.tag.as_str() {
-            "rect" | "text" => assert_eq!((attr(moved, "x"), attr(moved, "y")), ("330", "132"), "{}", moved.tag),
+            "rect" => assert_eq!((attr(moved, "x"), attr(moved, "y")), ("330", "132")),
+            "text" => assert_eq!((attr(moved, "x"), attr(moved, "y")), ("338", "154")),
             "circle" => assert_eq!((attr(moved, "cx"), attr(moved, "cy")), ("380", "60")),
             _ => assert_eq!(attr(moved, "points"), "380 72 380 130"),
         }

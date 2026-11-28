@@ -6,19 +6,21 @@
 #   input:   Selection  Selection
 #   input:   Mode       u8, the mode (0-9)
 #   input:   Undo       bool, whether the page has a change to undo
+#   input:   Editing    bool, whether an edit is open in the editor
 #   output:  Hints      String (declared here)
 #
 # With nothing selected: how to pan, zoom, fit, select and select a group.
 # With a selection: that Enter edits the node being edited (the last one
 # selected, named by its tag), that a second click deselects a node, and
 # that Esc deselects all. With a group selected: that Enter moves the group
-# and a right-click goes to the group above. In line mode (1): that two
-# clicks draw a line, and how to get back to select mode. With something to
-# undo, they end with ", Ctrl-Z: undo".
+# and a right-click goes to the group above. In line, arrow or rect mode (1,
+# 2, 3): that two clicks draw one, and how to get back to select mode. With
+# something to undo, they end with ", Ctrl-Z: undo". While an edit is open in
+# the editor, only how to finish or drop it (the canvas is locked).
 
 v=$1
 # maps
-. ${NSMAP}/bind ${v} Doc Selection Mode Undo Hints
+. ${NSMAP}/bind ${v} Doc Selection Mode Undo Editing Hints
 
 cat << EOF
 
@@ -29,10 +31,15 @@ cat << EOF
         .and_then(|id| ${!doc}.nodes.get(*id))
         .map(|node| node.tag.as_str());
     let ${!hints} = match (${v}editing_tag, ${!selection}.group) {
-        _ if ${!mode} == 1 => {
-            "click twice: draw a line, Esc: drop the first click, 0: select mode, wheel: zoom, middle-drag or space+drag: pan, F: fit"
-                .to_string()
-        }
+        _ if ${!editing} => "finish the edit in your editor, or Esc twice: drop it".to_string(),
+        _ if (1..=3).contains(&${!mode}) => format!(
+            "click twice: draw {}, Esc: drop the first click, 0: select mode, wheel: zoom, middle-drag or space+drag: pan, F: fit",
+            match ${!mode} {
+                1 => "a line",
+                2 => "an arrow",
+                _ => "a rect",
+            }
+        ),
         (Some(tag), Some(_)) => format!(
             "Enter: edit the <{}> (the group moves with it), right-click: the group above, Esc: deselect all",
             tag
@@ -46,7 +53,7 @@ cat << EOF
                 .to_string()
         }
     };
-    // undo, once there is something to undo
-    let ${!hints} = if ${!undo} { format!("{}, Ctrl-Z: undo", ${!hints}) } else { ${!hints} };
+    // undo, once there is something to undo (not while editing: it's locked)
+    let ${!hints} = if ${!undo} && !${!editing} { format!("{}, Ctrl-Z: undo", ${!hints}) } else { ${!hints} };
 
 EOF

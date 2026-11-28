@@ -88,7 +88,7 @@ for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-pa
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
     node-apply map banner mode-notice hud-hints key-presses select-group transform-note \
-    add-line history-push history-step select-all ctrl-keys; do
+    add-line history-push history-step select-all ctrl-keys add-arrow add-rect edit-escape; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -256,7 +256,7 @@ mutant bug "the watch never takes a new stamp" src/file-watch.sh \
 mutant bug "a click misses the box's edge" src/hit-test.sh \
     's/\.locate_all_at_point(\[\${!pos}\.x, \${!pos}\.y\])/.locate_all_at_point([${!pos}.x + 0.5, ${!pos}.y + 0.5])/'
 mutant bug "overlaps give the last node, not the first" src/hit-test.sh \
-    's/\.min_by_key(|id| (\${!doc}\.nodes\[\*id\]\.tag != "text", \*id));/.min_by_key(|id| (${!doc}.nodes[*id].tag != "text", usize::MAX - *id));/'
+    's/\.min_by_key(|id| (\${!doc}\.nodes\[\*id\]\.tag != "text", \${v}swimlane(\*id), \*id));/.min_by_key(|id| (${!doc}.nodes[*id].tag != "text", ${v}swimlane(*id), usize::MAX - *id));/'
 mutant bug "a second click doesn't deselect" src/select.sh \
     's/\${!selection}\.ids\.retain(|other| \*other != id);/let _ = id;/'
 mutant bug "a new selection isn't the one being edited" src/select.sh \
@@ -278,11 +278,11 @@ mutant bug "map skips polylines" src/map.sh \
 mutant bug "map ignores stroke-width" src/map.sh \
     's/if widens \&\& name == "stroke-width" {/if false {/'
 mutant bug "a circle's anchor is read as x, y" src/map.sh \
-    's/let (x_name, y_name) = if node\.tag == "circle" { ("cx", "cy") } else { ("x", "y") };/let (x_name, y_name) = ("x", "y");/'
+    '/^            "circle" => ("cx", "cy"),$/d'
 
 # ---- text nodes (step 4) ----
 mutant bug "a label loses the click to its box" src/hit-test.sh \
-    's/\.min_by_key(|id| (\${!doc}\.nodes\[\*id\]\.tag != "text", \*id));/.min_by_key(|id| (false, *id));/'
+    's/\.min_by_key(|id| (\${!doc}\.nodes\[\*id\]\.tag != "text", \${v}swimlane(\*id), \*id));/.min_by_key(|id| (false, ${v}swimlane(*id), *id));/'
 mutant bug "a selected text isn't recolored" src/draw-doc.sh \
     's/let colors_it = name == "stroke" || (name == "fill" \&\& node\.tag == "text");/let colors_it = name == "stroke";/'
 mutant bug "node XML drops a text's text" src/node-xml.sh \
@@ -292,7 +292,7 @@ mutant bug "a text edit keeps the old text" src/node-apply.sh \
 mutant bug "nodes of the same kind don't follow" src/map.sh \
     's/let maps = \${v}kinds\.contains(\&\${!after}\.tag\.as_str()) \&\& \${v}kinds\.contains(\&dest\.tag\.as_str());/let maps = ${v}kinds.contains(\&${!after}.tag.as_str()) \&\& ${v}kinds.contains(\&dest.tag.as_str()) \&\& ${!after}.tag != dest.tag;/'
 mutant bug "text doesn't follow" src/map.sh \
-    's/let \${v}kinds = \["rect", "circle", "polyline", "text"\];/let ${v}kinds = ["rect", "circle", "polyline"];/'
+    's/let \${v}kinds = \["rect", "circle", "line", "polyline", "text"\];/let ${v}kinds = ["rect", "circle", "line", "polyline"];/'
 mutant bug "text pairs carry the stroke change" src/map.sh \
     's/let widens = maps \&\& \${!after}\.tag != "text" \&\& dest\.tag != "text";/let widens = maps;/'
 mutant bug "the mode notice never goes away" src/mode-notice.sh \
@@ -333,7 +333,7 @@ mutant bug "a drawn line goes inside the first node" src/add-line.sh \
 mutant bug "line mode says Coming Soon" src/mode-notice.sh \
     '/            1 => "1 => Line Mode"\.to_string(),/d'
 mutant bug "line mode's hints say how to select" src/hud-hints.sh \
-    's/        _ if \${!mode} == 1 => {/        _ if false => {/'
+    's/        _ if (1\.\.=3)\.contains(\&\${!mode}) => format!(/        _ if false => format!(/'
 
 # ---- undo, redo and select all (step 5a) ----
 mutant bug "a new change keeps redo" src/history-push.sh \
@@ -363,7 +363,50 @@ mutant bug "Ctrl-A does nothing" src/ctrl-keys.sh \
 mutant bug "the Ctrl chords work without Ctrl" src/ctrl-keys.sh \
     's/    if \${!ctrl} {/    if true {/'
 mutant bug "the hints never say Ctrl-Z" src/hud-hints.sh \
-    's/let \${!hints} = if \${!undo} {/let ${!hints} = if false {/'
+    's/let \${!hints} = if \${!undo} \&\& !\${!editing} {/let ${!hints} = if false {/'
+
+# ---- lines in the map, swimlanes, arrows, rects, Esc twice (devbox@8faf51d, step 6) ----
+# TDDTEST3 FTR: lines get a click box
+mutant missing "lines have no click box" src/mouse-rects.sh \
+    '/^            "line" => {$/,/^            }$/d'
+# TDDTEST4 FIX: the line pairs in smartMap
+mutant bug "lines are left out of the map" src/map.sh \
+    's/let \${v}kinds = \["rect", "circle", "line", "polyline", "text"\];/let ${v}kinds = ["rect", "circle", "polyline", "text"];/'
+mutant bug "a line's anchor is read as x, y" src/map.sh \
+    '/^            "line" => ("x1", "y1"),$/d'
+mutant bug "a line that follows moves only its start" src/map.sh \
+    's/            if maps \&\& is_line \&\& name == "x2" {/            if false {/'
+mutant bug "a line follows a line by its start" src/map.sh \
+    's/let line_to_line = \${!after}\.tag == "line" \&\& is_line;/let line_to_line = false;/'
+# TDDTEST5 FTR: swimlanes come last in a click
+mutant bug "swimlanes aren't last" src/hit-test.sh \
+    's/(\${!doc}\.nodes\[\*id\]\.tag != "text", \${v}swimlane(\*id), \*id)/(${!doc}.nodes[*id].tag != "text", false \&\& ${v}swimlane(*id), *id)/'
+mutant bug "every rect is a swimlane" src/hit-test.sh \
+    's/node\.tag == "rect" \&\& node\.bounds\.w > SWIMLANE_W \&\& node\.bounds\.h > SWIMLANE_H/node.tag == "rect"/'
+mutant bug "a rect drawn up or left keeps its first click as the corner" src/add-rect.sh \
+    's/let \${v}corner = start\.min(\${v}at);/let ${v}corner = start;/'
+# TDDTEST7 FTR: arrows
+mutant bug "a nearly upright arrow isn't straightened" src/add-arrow.sh \
+    's/            if (\${v}at\.x - start\.x)\.abs() < STRAIGHTEN {/            if false {/'
+mutant bug "a nearly level arrow isn't straightened" src/add-arrow.sh \
+    's/            if (\${v}at\.y - start\.y)\.abs() < STRAIGHTEN {/            if false {/'
+mutant bug "arrowhead arms are 10 long" src/models.sh \
+    's/^const ARROW_ARM: f32 = 14\.142136;/const ARROW_ARM: f32 = 10.0;/'
+mutant bug "the arrowhead's arms are swapped" src/models.sh \
+    's/    (turn(-45\.0), turn(45\.0))/    (turn(45.0), turn(-45.0))/'
+mutant bug "arrow and rect modes say Coming Soon" src/mode-notice.sh \
+    '/            [23] => "[23] => [A-Za-z]* Mode"\.to_string(),/d'
+mutant bug "arrow and rect modes' hints say how to draw a line" src/hud-hints.sh \
+    's/        _ if (1\.\.=3)\.contains(\&\${!mode}) => format!(/        _ if (1..=1).contains(\&${!mode}) => format!(/'
+# Esc twice drops an open edit
+mutant bug "the first Esc drops the edit" src/edit-escape.sh \
+    's/        if \${v}confirms {/        if true {/'
+mutant bug "a late second Esc still drops the edit" src/edit-escape.sh \
+    's/\${!warned_at}\.is_some_and(|at| \${!now} - at < DROP_CONFIRM_SECS)/${!warned_at}.is_some()/'
+mutant bug "while editing the hints don't say how to drop the edit" src/hud-hints.sh \
+    's/        _ if \${!editing} => /        _ if false => /'
+mutant bug "while editing the hints offer undo" src/hud-hints.sh \
+    's/let \${!hints} = if \${!undo} \&\& !\${!editing} {/let ${!hints} = if ${!undo} {/'
 
 # ---- <g> groups ----
 mutant bug "a right-click outside any group selects the clicked node" src/select-group.sh \

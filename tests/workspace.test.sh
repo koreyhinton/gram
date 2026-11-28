@@ -221,7 +221,7 @@ fn page(path: &str, dirty: bool, error: Option<&str>) -> Page {
         dirty,
         fitted: false,
         selection: Selection::default(),
-        line_from: None,
+        draw_from: None,
         history: History::default(),
         saved: Doc::default(),
     }
