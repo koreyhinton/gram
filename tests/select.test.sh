@@ -22,7 +22,9 @@
 #       change of anchor (rect and text x/y, circle cx/cy, polyline first
 #       point) moves each other selected node, for any pair among rect,
 #       circle, polyline and text; its stroke-width change is added between
-#       shapes that aren't text.
+#       shapes that aren't text. From devbox@8faf51d, lines too: a line's
+#       anchor is x1, y1, and a line that follows moves whole (both ends); a
+#       line following a line takes each end's own change.
 
 : "${NSMAP:?set NSMAP (see test.sh)}"
 
@@ -50,6 +52,9 @@ export ${v}map_Before=\(\&before\)
 export ${v}map_After=\(\&after\)
 export ${v}map_Others=\(\&others\)
 export ${v}map_Nodes=doc.nodes
+export ${v}line_Nodes=doc.nodes
+export ${v}line_Pos=pos
+export ${v}line_From=from
 # the edit's XML, read back
 export ${v}eload_Text=edit_text
 export ${v}eload_Doc=edited
@@ -511,4 +516,119 @@ fn an_edit_that_isnt_one_element_is_refused() {
     ` ./svg-load.sh ${v}eload_ `
     assert!(edit_error.is_some());
 }
+
+// ---- lines in the map (devbox@8faf51d) ----
+
+// TDD TEST 4 - MODE 0 CAN MOVE LINE SUBSELECTION
+#[test]
+fn tdd_04_mode_0_can_move_a_line_subselection() {
+    let (y_start, y_move) = (164.0, -33.0);
+    let svg_text = SVG_EX_5;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    for click in [(250.0, y_start), (500.0, y_start)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-line.sh ${v}line_ `
+    }
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let mut selection = Selection::default();
+    // the line (to follow), then the rest for show, then the rect (edited)
+    for click in [(270.0, y_start), (333.0, 134.0), (333.0, 154.0), (375.0, 52.0), (375.0, 40.0), (325.0, 112.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./hit-test.sh ${v}hit_ `
+        ` ./select.sh ${v}sel_ `
+    }
+    assert_eq!(selection.ids, vec![5, 3, 4, 1, 0, 2]);
+
+    // the rect's y 112 -> 79
+    let id = 2;
+    ` ./node-xml.sh ${v}xml_ `
+    let edit_text = format!("<svg>{}</svg>", xml.replacen("112", &(112.0 + y_move).to_string(), 1));
+    ` ./svg-load.sh ${v}eload_ `
+    let before = doc.nodes[id].clone();
+    ` ./node-apply.sh ${v}apply_ `
+    let after = doc.nodes[id].clone();
+    let others: Vec<usize> = selection.ids[..selection.ids.len() - 1].to_vec();
+    ` ./map.sh ${v}map_ `
+
+    assert_eq!(attr(&doc.nodes[5], "y2"), (y_start + y_move).to_string());
+    assert_eq!(attr(&doc.nodes[5], "y1"), (y_start + y_move).to_string());
+}
+
+#[test]
+fn lines_follow_the_other_kinds_and_the_other_kinds_follow_lines() {
+    // each kind edited, moved by (5, 20) with its stroke 2 wider; the line
+    // with it moves whole, and widens unless the edit was a text
+    let line = r#"<line x1="10" y1="10" x2="60" y2="40" stroke-width="1"/>"#;
+    let shapes = [
+        (r#"<rect x="325" y="112" stroke-width="1"/>"#, r#"<rect x="330" y="132" stroke-width="3"/>"#),
+        (r#"<circle cx="375" cy="40" stroke-width="1"/>"#, r#"<circle cx="380" cy="60" stroke-width="3"/>"#),
+        (r#"<polyline points="375 52 375 110" stroke-width="1"/>"#, r#"<polyline points="380 72 380 130" stroke-width="3"/>"#),
+        (r#"<text x="333" y="134" stroke-width="1">a</text>"#, r#"<text x="338" y="154" stroke-width="3">a</text>"#),
+    ];
+    for (old, new) in shapes {
+        let svg_text = format!("<svg>{}{}</svg>", old, line);
+        ` ./svg-load.sh ${v}load_ `
+        let before = doc.nodes[0].clone();
+        let edit_text = format!("<svg>{}</svg>", new);
+        ` ./svg-load.sh ${v}eload_ `
+        let after = edited.nodes[0].clone();
+        doc.nodes[0] = after.clone();
+        let others = vec![1usize];
+
+        ` ./map.sh ${v}map_ `
+
+        let moved = &doc.nodes[1];
+        let ends = (attr(moved, "x1"), attr(moved, "y1"), attr(moved, "x2"), attr(moved, "y2"));
+        assert_eq!(ends, ("15", "30", "65", "60"), "{}", before.tag);
+        let width = if before.tag == "text" { "1" } else { "3" };
+        assert_eq!(attr(moved, "stroke-width"), width, "{}", before.tag);
+    }
+
+    // a line edited, its start moved by (5, 20): each kind follows its start
+    for (old, _) in shapes {
+        let svg_text = format!("<svg>{}{}</svg>", line, old);
+        ` ./svg-load.sh ${v}load_ `
+        let before = doc.nodes[0].clone();
+        let edit_text = r#"<svg><line x1="15" y1="30" x2="65" y2="60" stroke-width="3"/></svg>"#;
+        ` ./svg-load.sh ${v}eload_ `
+        let after = edited.nodes[0].clone();
+        doc.nodes[0] = after.clone();
+        let others = vec![1usize];
+
+        ` ./map.sh ${v}map_ `
+
+        let moved = &doc.nodes[1];
+        match moved.tag.as_str() {
+            "rect" => assert_eq!((attr(moved, "x"), attr(moved, "y")), ("330", "132")),
+            "text" => assert_eq!((attr(moved, "x"), attr(moved, "y")), ("338", "154")),
+            "circle" => assert_eq!((attr(moved, "cx"), attr(moved, "cy")), ("380", "60")),
+            _ => assert_eq!(attr(moved, "points"), "380 72 380 130"),
+        }
+        let width = if moved.tag == "text" { "1" } else { "3" };
+        assert_eq!(attr(moved, "stroke-width"), width, "{}", moved.tag);
+    }
+}
+
+#[test]
+fn a_line_follows_a_line_end_by_end() {
+    // the old line -> line rule: each end takes the edited line's change at
+    // that end, so a stretched line stretches the other the same way
+    let svg_text = r#"<svg><line x1="10" y1="10" x2="60" y2="10" stroke-width="1"/><line x1="100" y1="100" x2="150" y2="100" stroke-width="1"/></svg>"#;
+    ` ./svg-load.sh ${v}load_ `
+    let before = doc.nodes[0].clone();
+    let edit_text = r#"<svg><line x1="10" y1="10" x2="80" y2="25" stroke-width="1"/></svg>"#;
+    ` ./svg-load.sh ${v}eload_ `
+    let after = edited.nodes[0].clone();
+    doc.nodes[0] = after.clone();
+    let others = vec![1usize];
+
+    ` ./map.sh ${v}map_ `
+
+    let moved = &doc.nodes[1];
+    let ends = (attr(moved, "x1"), attr(moved, "y1"), attr(moved, "x2"), attr(moved, "y2"));
+    assert_eq!(ends, ("100", "100", "170", "115"));
+}
+
 EOF

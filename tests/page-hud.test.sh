@@ -33,6 +33,9 @@ export ${v}hints_Doc=doc
 export ${v}hints_Selection=selection
 export ${v}hints_Mode=mode
 export ${v}hints_Undo=can_undo
+export ${v}hints_Editing=editing
+export ${v}sel_Selection=selection
+export ${v}sel_Hit=hit
 export ${v}hints_Hints=hints
 export ${v}banner_Text=message
 export ${v}notice_Mode=mode
@@ -170,6 +173,13 @@ fn a_mode_change_says_so_for_a_few_seconds() {
     let mode = 1u8;
     ` ./mode-notice.sh ${v}notice_ `
     assert!(drawn().contains(&Drawn::Text { text: "1 => Line Mode".to_string() }), "{:?}", drawn());
+    // devbox@8faf51d
+    let mode = 2u8;
+    ` ./mode-notice.sh ${v}notice_ `
+    assert!(drawn().contains(&Drawn::Text { text: "2 => Arrow Mode".to_string() }), "{:?}", drawn());
+    let mode = 3u8;
+    ` ./mode-notice.sh ${v}notice_ `
+    assert!(drawn().contains(&Drawn::Text { text: "3 => Rect Mode".to_string() }), "{:?}", drawn());
 
     let mode = 4u8;
     let since = MODE_NOTICE_SECS - 0.01;
@@ -185,6 +195,7 @@ fn a_mode_change_says_so_for_a_few_seconds() {
 fn the_hints_say_how_to_edit_once_something_is_selected() {
     let mode = 0u8;
     let can_undo = false;
+    let editing = false;
     let doc = Doc {
         root_attrs: vec![],
         nodes: ["circle", "rect"]
@@ -220,7 +231,74 @@ fn the_hints_say_how_to_draw_a_line_in_line_mode() {
     let selection = Selection::default();
     let mode = 1u8;
     let can_undo = false;
+    let editing = false;
     ` ./hud-hints.sh ${v}hints_ `
     assert!(hints.starts_with("click twice: draw a line"), "{}", hints);
 }
+
+// ---- devbox@8faf51d ----
+
+#[test]
+fn the_hints_say_how_to_draw_in_arrow_and_rect_mode() {
+    let doc = Doc::default();
+    let selection = Selection::default();
+    let (can_undo, editing) = (false, false);
+
+    let mode = 2u8;
+    ` ./hud-hints.sh ${v}hints_ `
+    assert!(hints.starts_with("click twice: draw an arrow"), "{}", hints);
+    let mode = 3u8;
+    ` ./hud-hints.sh ${v}hints_ `
+    assert!(hints.starts_with("click twice: draw a rect"), "{}", hints);
+}
+
+#[test]
+fn while_an_edit_is_open_the_hints_say_how_to_finish_or_drop_it() {
+    let doc = Doc { root_attrs: vec![], nodes: vec![] };
+    let selection = Selection::default();
+    let mode = 0u8;
+    // undo is locked while editing, so the hint leaves it out
+    let (can_undo, editing) = (true, true);
+
+    ` ./hud-hints.sh ${v}hints_ `
+
+    assert_eq!(hints, "finish the edit in your editor, or Esc twice: drop it");
+}
+
+// TDD TEST 6 - DE-SELECTING ALL NODES SHOULD HIDE THE (SINGLE-NODE) EDITOR.
+// gram has no in-app editor: deselecting the last node takes the hints back
+// to how to select.
+#[test]
+fn tdd_06_deselecting_the_last_node_returns_the_hints() {
+    let doc = Doc {
+        root_attrs: vec![],
+        nodes: ["circle", "polyline"]
+            .iter()
+            .map(|tag| Node {
+                tag: tag.to_string(),
+                attrs: vec![],
+                text: String::new(),
+                bounds: Rect::default(),
+                parent: None,
+            })
+            .collect(),
+    };
+    let mode = 0u8;
+    let (can_undo, editing) = (false, false);
+    let mut selection = Selection::default();
+
+    // select the initial node and the arrow, then deselect both
+    for click in [Some(0), Some(1), Some(1)] {
+        let hit: Option<usize> = click;
+        ` ./select.sh ${v}sel_ `
+    }
+    ` ./hud-hints.sh ${v}hints_ `
+    assert!(hints.starts_with("Enter: edit the <circle>"), "{}", hints);
+
+    let hit: Option<usize> = Some(0);
+    ` ./select.sh ${v}sel_ `
+    ` ./hud-hints.sh ${v}hints_ `
+    assert!(hints.starts_with("click: select"), "{}", hints);
+}
+
 EOF

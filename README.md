@@ -40,6 +40,8 @@ gram edits text in your editor: `$GRAM_EDITOR`, else `$VISUAL`, else `$EDITOR`, 
 
 Without `M-x server-start`, emacsclient fails at once with "can't find socket", and gram shows that in its banner. `GRAM_EDITOR=emacs` needs no server, but starts a new Emacs for every edit, which you quit to finish (`C-x C-c`).
 
+With no editor set, `xdg-open` hands the node to your desktop's text editor and returns at once. gram then watches the node file instead: save it in the text editor and gram applies the edit (Esc stops watching).
+
 ## Using gram
 
 | | |
@@ -50,12 +52,12 @@ Without `M-x server-start`, emacsclient fails at once with "can't find socket", 
 | click a node | select it, or deselect it if it's selected; the last one selected (green) is the one Enter edits |
 | right-click a node | select every shape in its `<g>` group; right-click again for the group around that one. Enter then edits the clicked node and moves the rest of the group with it |
 | **Enter** | edit the green node in the editor; the change carries over to the other selected nodes |
-| **Esc** | deselect all, or drop a refused edit |
+| **Esc** | deselect all, or drop a refused edit; while an edit is open in the editor, Esc twice drops it |
 | **R** | reopen a refused edit in the editor |
 | **Ctrl-Z** | undo the last change to the page (up to 100) |
 | **Ctrl-Y** or **Ctrl-Shift-Z** | redo what was undone |
 | **Ctrl-A** | select every shape on the page |
-| **0**–**9** | pick the mode: 0 selects, 1 draws lines (click at each end); the others do nothing yet |
+| **0**–**9** | pick the mode: 0 selects; 1 draws lines, 2 arrows, 3 rects (click at each end, or two corners); the others do nothing yet |
 | wheel | zoom about the cursor (over the tree: scroll it) |
 | middle-drag, or Space + drag | pan |
 | **F** or **Home** | fit the page to the window |

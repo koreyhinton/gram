@@ -62,6 +62,7 @@ export ${v}hints_Doc=doc
 export ${v}hints_Selection=selection
 export ${v}hints_Mode=mode
 export ${v}hints_Undo=can_undo
+export ${v}hints_Editing=editing
 export ${v}hints_Hints=hints
 
 cat << EOF
@@ -374,6 +375,7 @@ fn the_hints_say_ctrl_z_when_there_is_something_to_undo() {
     let doc = Doc::default();
     let selection = Selection::default();
     let mode = 0u8;
+    let editing = false;
 
     let can_undo = false;
     ` ./hud-hints.sh ${v}hints_ `

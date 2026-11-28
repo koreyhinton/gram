@@ -10,9 +10,11 @@
 #
 # The R-tree finds every click box holding the point, edges included. Of
 # those, text wins, so a click on a label inside a box picks the label (the
-# old sortSvgNodes put text first in the array); then the first in document
-# order, as xy2nd took the first match in its array. Only the choice is
-# reordered: the document keeps its order.
+# old sortSvgNodes put text first in the array); swimlanes (a rect whose box
+# is over SWIMLANE_W by SWIMLANE_H) go last, so a click on a shape inside a
+# lane picks the shape (devbox@8faf51d, until nearest-edge selection at step
+# 26); then the first in document order, as xy2nd took the first match in its
+# array. Only the choice is reordered: the document keeps its order.
 
 v=$1
 # maps
@@ -20,11 +22,16 @@ v=$1
 
 cat << EOF
 
-    // of the nodes whose click box holds the point: text first, then the
-    // first in document order
+    // of the nodes whose click box holds the point: text first, swimlanes
+    // last (a rect bigger than SWIMLANE_W by SWIMLANE_H), then the first in
+    // document order
+    let ${v}swimlane = |id: usize| {
+        let node = &${!doc}.nodes[id];
+        node.tag == "rect" && node.bounds.w > SWIMLANE_W && node.bounds.h > SWIMLANE_H
+    };
     let ${!hit}: Option<usize> = ${!index}
         .locate_all_at_point([${!pos}.x, ${!pos}.y])
         .map(|entry| entry.id)
-        .min_by_key(|id| (${!doc}.nodes[*id].tag != "text", *id));
+        .min_by_key(|id| (${!doc}.nodes[*id].tag != "text", ${v}swimlane(*id), *id));
 
 EOF

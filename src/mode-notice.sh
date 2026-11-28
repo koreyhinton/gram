@@ -6,8 +6,8 @@
 #   input:  Mode   u8, the mode (0-9)
 #   input:  Since  f64, seconds since the mode was picked
 #
-# "0 => Select Mode", "1 => Line Mode", or "N => Coming Soon" for the modes
-# that do nothing yet, white on NOTICE_BG, for MODE_NOTICE_SECS.
+# "0 => Select Mode", "1 => Line Mode", "2 => Arrow Mode", "3 => Rect Mode",
+# or "N => Coming Soon" for the modes that do nothing yet, white on NOTICE_BG, for MODE_NOTICE_SECS.
 
 v=$1
 # maps
@@ -20,6 +20,8 @@ cat << EOF
         let text = match ${!mode} {
             0 => "0 => Select Mode".to_string(),
             1 => "1 => Line Mode".to_string(),
+            2 => "2 => Arrow Mode".to_string(),
+            3 => "3 => Rect Mode".to_string(),
             other => format!("{} => Coming Soon", other),
         };
         let size = measure_text(&text, None, NOTICE_PX, 1.0);

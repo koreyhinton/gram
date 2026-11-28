@@ -37,6 +37,13 @@ export ${v}poll_Failed=failed
 export ${v}watch_Path=job.path.as_path\(\)
 export ${v}watch_Stamp=job.stamp
 export ${v}watch_Changed=changed
+export ${v}check_Path=job.path.as_path\(\)
+export ${v}check_Written=job.written.as_str\(\)
+export ${v}check_Exited=exited
+export ${v}check_Elapsed=elapsed
+export ${v}check_Saved=changed
+export ${v}check_Watching=job.watching
+export ${v}check_Outcome=outcome
 
 # a node edit: the node out as XML, the edit back in, carried over to the
 # other selected nodes, then the page's boxes and R-tree again
@@ -64,8 +71,19 @@ export ${v}group_Hit=hit
 export ${v}group_Selection=page.selection
 # a click in line mode
 export ${v}line_Pos=world
-export ${v}line_From=page.line_from
+export ${v}line_From=page.draw_from
 export ${v}line_Nodes=page.doc.nodes
+export ${v}arrow_Pos=world
+export ${v}arrow_From=page.draw_from
+export ${v}arrow_Nodes=page.doc.nodes
+export ${v}rect_Pos=world
+export ${v}rect_From=page.draw_from
+export ${v}rect_Nodes=page.doc.nodes
+# Esc while the editor is open
+export ${v}esc_Pressed=esc_pressed
+export ${v}esc_Now=now
+export ${v}esc_WarnedAt=job.warned_at
+export ${v}esc_Drop=drop_edit
 # undo: a snapshot before each change, and Ctrl-Z / Ctrl-Y / Ctrl-A
 export ${v}push_History=page.history
 export ${v}push_Doc=page.doc
@@ -103,6 +121,7 @@ export ${v}hints_Doc=page.doc
 export ${v}hints_Selection=page.selection
 export ${v}hints_Mode=ws.mode
 export ${v}hints_Undo=can_undo
+export ${v}hints_Editing=editing
 export ${v}hints_Hints=hints
 
 export ${v}tree_Entries=ws.entries
@@ -195,6 +214,9 @@ cat << EOF
         // the page whose edit button warned that its unsaved changes would
         // be replaced, and when (a second click within 5 seconds opens it)
         let mut file_warning: Option<(usize, f64)> = None;
+        // an edit Esc twice dropped: what it was (a node, or a page's file
+        // name) and when, for the banner
+        let mut dropped: Option<(EditKind, String, f64)> = None;
         // when the mode was last picked: at the start, as the old onStart
         // picked mode 0, so its notice shows first
         let mut mode_picked_at = get_time();
@@ -251,7 +273,7 @@ cat << EOF
                             dirty: false,
                             fitted: false,
                             selection: Selection::default(),
-                            line_from: None,
+                            draw_from: None,
                             history: History::default(),
                         });
                         ws.open = Some(ws.pages.len() - 1);
@@ -270,12 +292,21 @@ cat << EOF
                 if let Some(reason) = failed {
                     job.error = Some(reason);
                 }
-                if job.kind == EditKind::Node && exited && job.error.is_none() {
-                    match std::fs::read_to_string(&job.path) {
-                        // unchanged: nothing to apply
-                        Ok(text) if text == job.written => done = true,
-                        Ok(text) => edited = Some(text),
-                        Err(err) => job.error = Some(err.to_string()),
+                // a node edit: its file when the editor exits, or, if the
+                // editor handed it off (xdg-open), on the first save. The
+                // file's stamp is kept every frame so only a later save counts.
+                if job.kind == EditKind::Node && job.error.is_none() {
+                    ` ./file-watch.sh ${v}watch_ `
+
+                    let elapsed = get_time() - job.started;
+
+                    ` ./node-edit-check.sh ${v}check_ `
+
+                    match outcome {
+                        NodeEditOutcome::Wait => {}
+                        NodeEditOutcome::Unchanged => done = true,
+                        NodeEditOutcome::Apply(text) => edited = Some(text),
+                        NodeEditOutcome::Failed(err) => job.error = Some(err),
                     }
                 }
                 if job.kind == EditKind::File {
@@ -283,7 +314,7 @@ cat << EOF
                     reload = changed;
                     // stop with the editor, unless it handed the file off and
                     // returned at once; then keep watching until Esc
-                    done = exited && job.error.is_none() && get_time() - job.started > 2.0;
+                    done = exited && job.error.is_none() && get_time() - job.started > HANDOFF_SECS;
                 }
             }
 
@@ -351,7 +382,7 @@ cat << EOF
                 page.index = index;
                 page.error = read_error.or(load_error);
                 page.selection = Selection::default();
-                page.line_from = None;
+                page.draw_from = None;
                 page.dirty = false;
             }
             if done {
@@ -360,15 +391,36 @@ cat << EOF
 
             // ---- keys ----
             // Esc: drop a refused edit or stop watching a file (once its
-            // editor is gone), else deselect all (the old Done button)
+            // editor is gone); with the editor still open, the first Esc
+            // warns and a second soon after drops the edit (stopping the
+            // editor gram started); else deselect all (the old Done button)
             if is_key_pressed(KeyCode::Escape) {
                 let stop = ws.edit.as_ref().is_some_and(|job| job.child.is_none());
                 if stop {
                     ws.edit = None;
+                } else if let Some(job) = ws.edit.as_mut() {
+                    let esc_pressed = true;
+                    let now = get_time();
+
+                    ` ./edit-escape.sh ${v}esc_ `
+
+                    if drop_edit {
+                        if let Some(mut running) = job.child.take() {
+                            let _ = running.kill();
+                            let _ = running.wait();
+                        }
+                        let path = match job.kind {
+                            EditKind::Node => &job.path,
+                            EditKind::File => &ws.pages[job.page].path,
+                        };
+                        let what = path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default();
+                        dropped = Some((job.kind, what, now));
+                        ws.edit = None;
+                    }
                 }
                 if !editing && let Some(i) = ws.open {
                     ws.pages[i].selection = Selection::default();
-                    ws.pages[i].line_from = None;
+                    ws.pages[i].draw_from = None;
                 }
             }
 
@@ -396,7 +448,7 @@ cat << EOF
 
                             page.index = index;
                             page.selection = Selection::default();
-                            page.line_from = None;
+                            page.draw_from = None;
                         }
                     }
                     Some(CtrlAction::SelectAll) => {
@@ -408,7 +460,7 @@ cat << EOF
 
             // R: a refused node edit goes back to the editor, as it was left
             let reopen = presses.contains(&KeyCode::R)
-                && ws.edit.as_ref().is_some_and(|job| job.kind == EditKind::Node && job.child.is_none());
+                && ws.edit.as_ref().is_some_and(|job| job.kind == EditKind::Node && job.child.is_none() && job.error.is_some());
             if reopen && let Some(job) = ws.edit.as_mut() {
                 let path = job.path.clone();
 
@@ -418,11 +470,12 @@ cat << EOF
                 job.child = child;
                 job.error = open_error;
                 job.started = get_time();
+                job.watching = false;
                 lost_releases = get_keys_down().into_iter().collect();
             }
 
-            // 0-9: the mode (0 selects, 1 draws lines; the others do
-            // nothing yet). A new mode drops a line's first click.
+            // 0-9: the mode (0 selects, 1 draws lines, 2 arrows, 3 rects;
+            // the others do nothing yet). A new mode drops a first click.
             let digits = [
                 KeyCode::Key0, KeyCode::Key1, KeyCode::Key2, KeyCode::Key3, KeyCode::Key4,
                 KeyCode::Key5, KeyCode::Key6, KeyCode::Key7, KeyCode::Key8, KeyCode::Key9,
@@ -432,7 +485,7 @@ cat << EOF
                     ws.mode = num as u8;
                     mode_picked_at = get_time();
                     for page in ws.pages.iter_mut() {
-                        page.line_from = None;
+                        page.draw_from = None;
                     }
                 }
             }
@@ -470,6 +523,8 @@ cat << EOF
                     stamp: None,
                     error: written.err().map(|err| err.to_string()).or(open_error),
                     started: get_time(),
+                    warned_at: None,
+                    watching: false,
                 });
             }
 
@@ -501,6 +556,8 @@ cat << EOF
                         stamp: None,
                         error: open_error,
                         started: get_time(),
+                        warned_at: None,
+                        watching: false,
                     };
                     // the first look, so only later saves count
                     {
@@ -539,17 +596,27 @@ cat << EOF
                     ` ./canvas-update.sh ${v}pan_ `
                 }
 
-                // a click selects or deselects the node under it; in line
-                // mode, it starts or ends a line
-                if canvas_click && page.error.is_none() && ws.mode == 1 {
+                // a click selects or deselects the node under it; in line,
+                // arrow or rect mode, it starts or ends one
+                if canvas_click && page.error.is_none() && (1..=3).contains(&ws.mode) {
                     let world = page.canvas.offset + mouse / page.canvas.zoom;
                     let count = page.doc.nodes.len();
-                    // the second click adds the line: the page before it can be undone back to
-                    if page.line_from.is_some() {
+                    // the second click adds the shape: the page before it can be undone back to
+                    if page.draw_from.is_some() {
                         ` ./history-push.sh ${v}push_ `
                     }
 
-                    ` ./add-line.sh ${v}line_ `
+                    match ws.mode {
+                        1 => {
+                            ` ./add-line.sh ${v}line_ `
+                        }
+                        2 => {
+                            ` ./add-arrow.sh ${v}arrow_ `
+                        }
+                        _ => {
+                            ` ./add-rect.sh ${v}rect_ `
+                        }
+                    }
 
                     if page.doc.nodes.len() > count {
                         ` ./mouse-rects.sh ${v}prects_ `
@@ -598,9 +665,15 @@ cat << EOF
                     ` ./draw-doc.sh ${v}draw_ `
                 }
                 // line mode: the line so far, from its first click to the mouse
-                if ws.mode == 1 && let Some(from) = page.line_from {
+                if (1..=3).contains(&ws.mode) && let Some(from) = page.draw_from {
                     let to = page.canvas.offset + mouse / page.canvas.zoom;
-                    draw_line(from.x, from.y, to.x, to.y, 1.0, SEL_COLOR);
+                    if ws.mode == 3 {
+                        let corner = from.min(to);
+                        let size = (from - to).abs();
+                        draw_rectangle_lines(corner.x, corner.y, size.x, size.y, 1.0, SEL_COLOR);
+                    } else {
+                        draw_line(from.x, from.y, to.x, to.y, 1.0, SEL_COLOR);
+                    }
                     draw_circle(from.x, from.y, 3.0 / page.canvas.zoom, SEL_COLOR);
                 }
 
@@ -650,6 +723,15 @@ cat << EOF
                         format!("{}  -  R: edit again, Esc: drop the edit", err)
                     }
                     (_, _, Some(err)) => format!("{}  -  Esc: close", err),
+                    _ if job.warned_at.is_some_and(|at| get_time() - at < DROP_CONFIRM_SECS) => {
+                        "an edit is open in your editor: finish it there (C-x #), or press Esc again to drop it".to_string()
+                    }
+                    (EditKind::Node, false, None) if job.watching => {
+                        format!(
+                            "watching {} for a save  -  Esc: stop",
+                            job.path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default()
+                        )
+                    }
                     (EditKind::Node, _, None) => {
                         format!("editing the <{}> in your editor: close it to apply the edit", tag)
                     }
@@ -668,6 +750,14 @@ cat << EOF
                 ` ./transform-note.sh ${v}note_ `
 
                 message = note.unwrap_or_default();
+            }
+            if let Some((kind, what, at)) = dropped.as_ref()
+                && get_time() - at < DROPPED_NOTE_SECS
+            {
+                message = match kind {
+                    EditKind::Node => format!("edit dropped; your editor may still show {}: close it without saving", what),
+                    EditKind::File => format!("stopped watching {}; your editor may still have it open", what),
+                };
             }
             if let Some((i, at)) = file_warning
                 && get_time() - at < 5.0

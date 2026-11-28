@@ -83,6 +83,43 @@ const SHAPE_TAGS: [&str; 5] = ["line", "polyline", "rect", "circle", "text"];
 // set their own (svg's inherited presentation attributes that gram draws)
 const INHERITED_ATTRS: [&str; 6] = ["fill", "stroke", "stroke-width", "stroke-dasharray", "font-size", "text-decoration"];
 
+// drawing (devbox@8faf51d): an arrow's end within this of its start on an
+// axis takes the start's value there, so near-straight arrows come out
+// straight (world units)
+const STRAIGHTEN: f32 = 11.0;
+// an arrowhead's arms: at 45 degrees from the shaft, ARROW_ARM long (the old
+// app's straight-arrow head, 10 back and 10 across)
+const ARROW_ARM: f32 = 14.142136;
+// a rect whose click box is wider and higher than this is a swimlane: it
+// comes after every other shape when a click picks one (until step 26)
+const SWIMLANE_W: f32 = 200.0;
+const SWIMLANE_H: f32 = 300.0;
+// Esc twice drops an open edit: the second Esc must come within this many
+// seconds of the first
+const DROP_CONFIRM_SECS: f64 = 3.0;
+// after an edit is dropped, how long the banner says so
+const DROPPED_NOTE_SECS: f64 = 5.0;
+// an editor that exits within this many seconds of starting handed the file
+// to another program (xdg-open, emacsclient -n): gram keeps watching the file
+const HANDOFF_SECS: f64 = 2.0;
+
+// the two arm ends of an arrowhead at tip, for a shaft coming from from: each
+// ARROW_ARM back along the shaft, turned 45 degrees to either side, rounded
+// to whole numbers. The first arm is the one a downward arrow has on its left.
+fn arrow_head(from: Vec2, tip: Vec2) -> (Vec2, Vec2) {
+    let shaft = tip - from;
+    if shaft.length() == 0.0 {
+        return (tip, tip);
+    }
+    let back = -shaft.normalize() * ARROW_ARM;
+    let turn = |degrees: f32| {
+        let (sin, cos) = degrees.to_radians().sin_cos();
+        // (+ 0.0 turns a -0 into 0)
+        (tip + vec2(back.x * cos - back.y * sin, back.x * sin + back.y * cos)).round() + Vec2::ZERO
+    };
+    (turn(-45.0), turn(45.0))
+}
+
 // a number as the old web app read it (JS parseFloat): the longest number at
 // the start, after any whitespace, so "10px" is 10 and "1.5e1" is 15. A value
 // with no number at the start is 0 (JS gave NaN, or -999 for a missing
@@ -196,6 +233,19 @@ enum CtrlAction {
     SelectAll,
 }
 
+// what a node edit's file says this frame (node-edit-check.sh)
+#[derive(Clone, Debug, PartialEq)]
+enum NodeEditOutcome {
+    // nothing to do yet
+    Wait,
+    // the editor finished without changing it
+    Unchanged,
+    // the edited XML, to apply
+    Apply(String),
+    // the file couldn't be read
+    Failed(String),
+}
+
 // what an open editor is editing
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum EditKind {
@@ -225,6 +275,12 @@ struct EditJob {
     // at once (xdg-open, emacsclient -n) handed the file off, so gram keeps
     // watching it
     started: f64,
+    // when Esc was first pressed while the editor was open (edit-escape.sh):
+    // a second Esc soon after drops the edit
+    warned_at: Option<f64>,
+    // a node edit whose editor handed the file off and returned at once:
+    // gram watches node.xml for a save instead (node-edit-check.sh)
+    watching: bool,
 }
 
 // one svg file: the root <svg> element's attributes, then its elements in
@@ -269,8 +325,9 @@ struct Page {
     // fitted to the window once it had its real size
     fitted: bool,
     selection: Selection,
-    // line mode's first click (world units), waiting for the line's end
-    line_from: Option<Vec2>,
+    // line, arrow or rect mode's first click (world units), waiting for the
+    // second
+    draw_from: Option<Vec2>,
     // what can be undone and redone (history-push.sh, history-step.sh)
     history: History,
     // the page as last loaded or saved: undoing back to it clears dirty
