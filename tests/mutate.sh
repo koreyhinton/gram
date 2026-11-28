@@ -448,6 +448,17 @@ mutant bug "the one-click modes' hints say how to select" src/hud-hints.sh \
 mutant bug "rounded rect and fork/join modes' hints say how to select" src/hud-hints.sh \
     's/        _ if \[1, 2, 3, 4, 8\]\.contains(\&\${!mode}) => format!(/        _ if [1, 2, 3].contains(\&${!mode}) => format!(/'
 
+# ---- circle <-> line, a rect moved twice (devbox@805fd51 and @8a8a291, steps 8 and 9) ----
+# TDDTEST15 FIX: the old circle -> line added to the ends as point lists (NaN)
+mutant bug "a line following a circle gets NaN ends" src/map.sh \
+    's/^\(        let (far_dx, far_dy) = if line_to_line .*\)$/\1 let (far_dx, far_dy) = if ${!after}.tag == "circle" { (f64::NAN, f64::NAN) } else { (far_dx, far_dy) };/'
+# TDDTEST16 FIX: the old line -> circle added to cx and cy as point lists (NaN)
+mutant bug "a circle following a line gets a NaN center" src/map.sh \
+    's/^\(            if maps \&\& !is_polyline \&\& name == x_name {\)$/            if maps \&\& name == "cx" \&\& ${!after}.tag == "line" { *value = "NaN".to_string(); continue; }\n\1/'
+# TDDTEST17 FIX: the old setMouseRects grew each box from its last one
+mutant bug "click boxes keep their old extent" src/mouse-rects.sh \
+    's/^        \${v}node\.bounds = Rect::new(min_x, min_y, max_x - min_x, max_y - min_y);$/        let fresh = Rect::new(min_x, min_y, max_x - min_x, max_y - min_y); ${v}node.bounds = if ${v}node.bounds.w > 0.0 { ${v}node.bounds.combine_with(fresh) } else { fresh };/'
+
 # ---- a node edit handed to an editor that returns at once (xdg-open) ----
 mutant bug "a hand-off editor ends the edit at once" src/node-edit-check.sh \
     's/            Ok(_) if !\${!watching} \&\& \${!elapsed} >= HANDOFF_SECS => /            Ok(_) if !${!watching} => /'

@@ -5,8 +5,11 @@
 # (devbox@c702432): click to select, the selection colors, a node out as
 # XML, the edit back in, and the edit carried over to the other selected
 # nodes; then its text nodes (devbox@8c8c666). A node edit round trip runs a
-# real editor process (sed -i). Last, the old app's first TDD tests
-# (devbox@ed1a227): TDD TEST 0 and 1, whose fixes gram already has.
+# real editor process (sed -i). Last, the old app's TDD tests on selecting
+# and moving (devbox@ed1a227 on): TDD TEST 0, 1, 4 and 9, and from
+# devbox@805fd51 its MoveTester (move_by: move the node being edited by
+# x and y, check the other moved with it and no number went NaN), which TDD
+# TEST 0, 4, 9 and 15-17 use. gram already has the fixes they check.
 #
 # The interface these tests fix:
 #   hit-test.sh    binds Doc, Index, Pos and Hit. Of the shapes whose click
@@ -457,14 +460,92 @@ const SVG_EX_5: &str = r#"<svg version="1.1" xmlns="http://www.w3.org/2000/svg" 
     <text x="333" y="154" fill="black">Request</text>
 </svg>"#;
 
-// TDD TEST 0 - RECT MOVE X SHOULD MOVE SUBSELECTED TEXT
+// svgEx at devbox@805fd51: the circle filled, its cy 40 -> 39 (TDDTEST0 FIX)
+const SVG_EX_8: &str = r#"<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="750" height="750" viewBox="0,0,750,750">
+    <circle cx="375" cy="39" r="10" fill="black" stroke="black" stroke-width="1"/>
+    <polyline points="375 52 375 110 365 100 375 110 385 100" stroke="black" fill="transparent" stroke-width="1"/>
+    <rect rx="10" ry="10" x="325" y="112" width="100" height="50" stroke="black" fill="transparent" stroke-width="1"/>
+    <text x="333" y="134" fill="black">Receive</text>
+    <text x="333" y="154" fill="black">Request</text>
+</svg>"#;
+
+// svgEx at devbox@8a8a291: the arrow 2 shorter, its head at 108
+const SVG_EX_9: &str = r#"<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="750" height="750" viewBox="0,0,750,750">
+    <circle cx="375" cy="39" r="10" fill="black" stroke="black" stroke-width="1"/>
+    <polyline points="375 52 375 108 365 98 375 108 385 98" stroke="black" fill="transparent" stroke-width="1"/>
+    <rect rx="10" ry="10" x="325" y="112" width="100" height="50" stroke="black" fill="transparent" stroke-width="1"/>
+    <text x="333" y="134" fill="black">Receive</text>
+    <text x="333" y="154" fill="black">Request</text>
+</svg>"#;
+
+// ---- the old MoveTester (ActSvgTddMove.js, devbox@805fd51) ----
+
+// the attributes a move edits, x then y: a line's both ends
+fn move_names(tag: &str) -> &'static [&'static str] {
+    match tag {
+        "circle" => &["cx", "cy"],
+        "line" => &["x1", "y1", "x2", "y2"],
+        _ => &["x", "y"],
+    }
+}
+
+// a node's coordinates, x then y: every point of a polyline
+fn coords(node: &Node) -> Vec<f64> {
+    let read = |value: &str| value.parse::<f64>().unwrap_or(f64::NAN);
+    if node.tag == "polyline" {
+        attr(node, "points").split_whitespace().map(read).collect()
+    } else {
+        move_names(&node.tag).iter().map(|name| read(attr(node, name))).collect()
+    }
+}
+
+fn shifted(coords: &[f64], dx: f64, dy: f64) -> Vec<f64> {
+    coords.iter().enumerate().map(|(i, c)| c + if i % 2 == 0 { dx } else { dy }).collect()
+}
+
+// MoveTester.moveBy then .test: edit the node being edited (the last
+// selected) by (dx, dy), as the old test edited its textarea, apply it and
+// map it onto the rest of the selection; then deselect all and rebuild the
+// click boxes, as the app does. The mover and the movee both moved by
+// (dx, dy), and no node holds a number that isn't one.
+fn move_by(doc: &mut Doc, selection: &mut Selection, movee: usize, dx: f32, dy: f32) {
+    let (dx, dy) = (dx as f64, dy as f64);
+    let id = *selection.ids.last().unwrap();
+    let (mover_was, movee_was) = (coords(&doc.nodes[id]), coords(&doc.nodes[movee]));
+    ` ./node-xml.sh ${v}xml_ `
+    let mut edit_text = xml.clone();
+    for (i, name) in move_names(&doc.nodes[id].tag).iter().enumerate() {
+        let (old, new) = (mover_was[i], shifted(&mover_was, dx, dy)[i]);
+        edit_text = edit_text.replacen(&format!(r#" {}="{}""#, name, old), &format!(r#" {}="{}""#, name, new), 1);
+    }
+    let edit_text = format!("<svg>{}</svg>", edit_text);
+    ` ./svg-load.sh ${v}eload_ `
+    let before = doc.nodes[id].clone();
+    ` ./node-apply.sh ${v}apply_ `
+    let after = doc.nodes[id].clone();
+    let others: Vec<usize> = selection.ids[..selection.ids.len() - 1].to_vec();
+    ` ./map.sh ${v}map_ `
+    *selection = Selection::default();
+    ` ./mouse-rects.sh ${v}rects_ `
+
+    assert_eq!(coords(&doc.nodes[id]), shifted(&mover_was, dx, dy), "the mover moved");
+    assert_eq!(coords(&doc.nodes[movee]), shifted(&movee_was, dx, dy), "the movee moved with it");
+    for node in doc.nodes.iter() {
+        for (name, value) in node.attrs.iter() {
+            for bad in ["NaN", "inf", "undefined", "null"] {
+                assert!(!value.contains(bad), "{} {}=\"{}\"", node.tag, name, value);
+            }
+        }
+    }
+}
+
+// TDD TEST 0 - RECT MOVE X,Y SHOULD MOVE SUBSELECTED TEXT
 #[test]
-fn tdd_00_rect_move_x_moves_the_selected_text() {
-    let svg_text = SVG_EX_5;
+fn tdd_00_rect_move_x_y_moves_the_selected_text() {
+    let svg_text = SVG_EX_8;
     ` ./svg-load.sh ${v}load_ `
     ` ./mouse-rects.sh ${v}rects_ `
     ` ./spatial-index.sh ${v}index_ `
-    let x = attr(&doc.nodes[3], "x").parse::<f64>().unwrap();
     let mut selection = Selection::default();
     // circle, polyline, both labels, then the rect (the one being edited)
     for click in [(378.0, 41.0), (376.0, 92.0), (364.0, 129.0), (364.0, 151.0), (412.0, 113.0)] {
@@ -474,23 +555,10 @@ fn tdd_00_rect_move_x_moves_the_selected_text() {
     }
     assert_eq!(selection.ids, vec![0, 1, 3, 4, 2]);
 
-    // the rect's XML, with its first 325 made 25, as the test's textarea
-    let id = *selection.ids.last().unwrap();
-    ` ./node-xml.sh ${v}xml_ `
-    let (old_x, new_x) = (325.0, 25.0);
-    let edit_text = format!("<svg>{}</svg>", xml.replacen("325", "25", 1));
-    ` ./svg-load.sh ${v}eload_ `
-    let before = doc.nodes[id].clone();
-    ` ./node-apply.sh ${v}apply_ `
-    let after = doc.nodes[id].clone();
-    let others: Vec<usize> = selection.ids[..selection.ids.len() - 1].to_vec();
-    ` ./map.sh ${v}map_ `
-
-    let affected_x = attr(&doc.nodes[3], "x").parse::<f64>().unwrap();
-    assert_eq!(old_x - new_x, x - affected_x);
+    move_by(&mut doc, &mut selection, 3, -300.0, 1.0);
     let id = 3;
     ` ./node-xml.sh ${v}xml_ `
-    assert_eq!(xml, r#"<text x="33" y="134" fill="black">Receive</text>"#);
+    assert_eq!(xml, r#"<text x="33" y="135" fill="black">Receive</text>"#);
 }
 
 // TDD TEST 1 - CLICK WHITESPACE BEYOND TEXT SHOULD SELECT SURROUNDING RECT
@@ -528,7 +596,7 @@ fn an_edit_that_isnt_one_element_is_refused() {
 #[test]
 fn tdd_04_mode_0_can_move_a_line_subselection() {
     let (y_start, y_move) = (164.0, -33.0);
-    let svg_text = SVG_EX_5;
+    let svg_text = SVG_EX_8;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
     let (width, radius) = ("1", "0");
@@ -539,27 +607,17 @@ fn tdd_04_mode_0_can_move_a_line_subselection() {
     ` ./mouse-rects.sh ${v}rects_ `
     ` ./spatial-index.sh ${v}index_ `
     let mut selection = Selection::default();
-    // the line (to follow), then the rest for show, then the rect (edited)
-    for click in [(270.0, y_start), (333.0, 134.0), (333.0, 154.0), (375.0, 52.0), (375.0, 40.0), (325.0, 112.0)] {
+    // the line (to follow), then the rect (edited)
+    for click in [(270.0, y_start), (325.0, 112.0)] {
         let pos = vec2(click.0, click.1);
         ` ./hit-test.sh ${v}hit_ `
         ` ./select.sh ${v}sel_ `
     }
-    assert_eq!(selection.ids, vec![5, 3, 4, 1, 0, 2]);
+    assert_eq!(selection.ids, vec![5, 2]);
 
-    // the rect's y 112 -> 79
-    let id = 2;
-    ` ./node-xml.sh ${v}xml_ `
-    let edit_text = format!("<svg>{}</svg>", xml.replacen("112", &(112.0 + y_move).to_string(), 1));
-    ` ./svg-load.sh ${v}eload_ `
-    let before = doc.nodes[id].clone();
-    ` ./node-apply.sh ${v}apply_ `
-    let after = doc.nodes[id].clone();
-    let others: Vec<usize> = selection.ids[..selection.ids.len() - 1].to_vec();
-    ` ./map.sh ${v}map_ `
-
-    assert_eq!(attr(&doc.nodes[5], "y2"), (y_start + y_move).to_string());
+    move_by(&mut doc, &mut selection, 5, 3.0, y_move);
     assert_eq!(attr(&doc.nodes[5], "y1"), (y_start + y_move).to_string());
+    assert_eq!(attr(&doc.nodes[5], "y2"), (y_start + y_move).to_string());
 }
 
 #[test]
@@ -640,11 +698,11 @@ fn a_line_follows_a_line_end_by_end() {
 
 // ---- devbox@01c476e ----
 
-// TDD TEST 9 - RECT MOVE X SHOULD MOVE SUBSELECTED RECT
+// TDD TEST 9 - RECT MOVE X,Y SHOULD MOVE SUBSELECTED RECT
 #[test]
-fn tdd_09_rect_move_x_moves_a_selected_rect() {
+fn tdd_09_rect_move_x_y_moves_a_selected_rect() {
     let (rect1_x, rect2_x, mv_x) = (325.0, 30.0, 44.0);
-    let svg_text = SVG_EX_5;
+    let svg_text = SVG_EX_8;
     ` ./svg-load.sh ${v}load_ `
     // a rounded rect, drawn in mode 4
     let mut from: Option<Vec2> = None;
@@ -663,18 +721,107 @@ fn tdd_09_rect_move_x_moves_a_selected_rect() {
     }
     assert_eq!(selection.ids, vec![2, 5]);
 
-    // the rounded rect's x 30 -> 74
-    let id = 5;
-    ` ./node-xml.sh ${v}xml_ `
-    let edit_text = format!("<svg>{}</svg>", xml.replacen("30", &(rect2_x + mv_x).to_string(), 1));
-    ` ./svg-load.sh ${v}eload_ `
-    let before = doc.nodes[id].clone();
-    ` ./node-apply.sh ${v}apply_ `
-    let after = doc.nodes[id].clone();
-    let others = vec![2usize];
-    ` ./map.sh ${v}map_ `
-
+    // the rounded rect by (44, 11)
+    move_by(&mut doc, &mut selection, 2, mv_x, 11.0);
     assert_eq!(attr(&doc.nodes[2], "x"), (rect1_x + mv_x).to_string());
+    assert_eq!(attr(&doc.nodes[2], "y"), "123");
+}
+
+// ---- circle <-> line, a rect moved twice (devbox@805fd51, @8a8a291) ----
+
+// TDD TEST 15 - CIRC MOVE X,Y SHOULD MOVE SUBSELECTED LINE
+// WITHOUT UNDEFINED ATTRIBUTES
+#[test]
+fn tdd_15_circle_move_x_y_moves_a_selected_line() {
+    let (line_x, mv_x) = (30.0, 44.0);
+    let svg_text = SVG_EX_8;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
+    for click in [(line_x, 30.0), (line_x, 90.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-line.sh ${v}line_ `
+    }
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let mut selection = Selection::default();
+    // the line, then the initial node (edited)
+    for click in [(line_x, 45.0), (375.0, 40.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./hit-test.sh ${v}hit_ `
+        ` ./select.sh ${v}sel_ `
+    }
+    assert_eq!(selection.ids, vec![5, 0]);
+
+    move_by(&mut doc, &mut selection, 5, mv_x, -11.0);
+    assert_eq!(attr(&doc.nodes[5], "x1"), (line_x + mv_x).to_string());
+    assert_eq!(attr(&doc.nodes[5], "y2"), "79");
+}
+
+// TDD TEST 16 - LINE MOVE X,Y SHOULD MOVE SUBSELECTED CIRC
+// WITHOUT UNDEFINED ATTRIBUTES
+#[test]
+fn tdd_16_line_move_x_y_moves_a_selected_circle() {
+    let (c_x, line_x, mv_x) = (375.0, 33.0, 44.0);
+    let svg_text = SVG_EX_8;
+    ` ./svg-load.sh ${v}load_ `
+    let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
+    for click in [(line_x, 30.0), (line_x, 90.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-line.sh ${v}line_ `
+    }
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let mut selection = Selection::default();
+    // the initial node, then the line (edited)
+    for click in [(c_x, 40.0), (line_x, 45.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./hit-test.sh ${v}hit_ `
+        ` ./select.sh ${v}sel_ `
+    }
+    assert_eq!(selection.ids, vec![0, 5]);
+
+    // the old test moved it by lineX + mvX
+    move_by(&mut doc, &mut selection, 0, line_x + mv_x, -13.0);
+    assert_eq!(attr(&doc.nodes[0], "cx"), (c_x + line_x + mv_x).to_string());
+    assert_eq!(attr(&doc.nodes[0], "cy"), "26");
+}
+
+// TDD TEST 17 - RECT MOVE X,Y TWICE SHOULD MOVE SUBSELECTED ARROW
+// WITHOUT ARROW DISAPPEARING
+#[test]
+fn tdd_17_rect_move_x_y_twice_moves_a_selected_arrow() {
+    let svg_text = SVG_EX_9;
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let mut selection = Selection::default();
+    // the arrow, then the rect (edited)
+    for click in [(375.0, 52.0), (325.0, 112.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./hit-test.sh ${v}hit_ `
+        ` ./select.sh ${v}sel_ `
+    }
+    assert_eq!(selection.ids, vec![1, 2]);
+    move_by(&mut doc, &mut selection, 1, 500.0 - 325.0, 500.0 - 112.0);
+    assert_eq!(attr(&doc.nodes[1], "points"), "550 440 550 496 540 486 550 496 560 486");
+
+    // the click boxes moved too: the arrow's old spot is empty now
+    ` ./spatial-index.sh ${v}index_ `
+    let pos = vec2(375.0, 80.0);
+    ` ./hit-test.sh ${v}hit_ `
+    assert_eq!(hit, None);
+
+    // the arrow and the rect where they are now, and again
+    for click in [(375.0 + (500.0 - 325.0), 52.0 + (500.0 - 112.0)), (500.0, 500.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./hit-test.sh ${v}hit_ `
+        ` ./select.sh ${v}sel_ `
+    }
+    assert_eq!(selection.ids, vec![1, 2]);
+    move_by(&mut doc, &mut selection, 1, 400.0 - 500.0, 400.0 - 500.0);
+    assert_eq!(attr(&doc.nodes[1], "points"), "450 340 450 396 440 386 450 396 460 386");
 }
 
 EOF
