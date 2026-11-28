@@ -63,6 +63,7 @@ The app has no text-editing widgets. Text editing goes to the user's editor, the
 
 - The tree lists folders before files, each by name ignoring case. Hidden entries, folders with no `.svg` inside, and symlinked folders are left out.
 - Each opened file is a `Page` in the `Workspace` (`src/models.sh`), kept while gram runs, so switching back finds it as it was left. Per-file state (canvas, selection, editor, unsaved changes) goes on the `Page`, never in globals.
+- Undo: each `Page` keeps a `History` of whole-`Doc` snapshots (`history-push.sh`, at most `UNDO_LIMIT`) and the page as last loaded or saved (`Page.saved`). **Every change to a page pushes a snapshot first** (a node edit with its map as one, a drawn line, a reload from the file), so any new step that changes a page must push too and test that it undoes. Ctrl-Z / Ctrl-Y / Ctrl-Shift-Z step through it (`history-step.sh`), clear the selection and set `dirty` by comparing with `Page.saved`; Ctrl-A selects every shape (`select-all.sh`). Not while the editor is open.
 - A file that can't be read or parsed opens as a page showing the error, and gram keeps running.
 - The tree takes the mouse over its panel (`TREE_W`); the canvas takes it elsewhere.
 

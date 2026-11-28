@@ -88,7 +88,7 @@ for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-pa
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
     node-apply map banner mode-notice hud-hints key-presses select-group transform-note \
-    add-line; do
+    add-line history-push history-step select-all ctrl-keys; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -334,6 +334,36 @@ mutant bug "line mode says Coming Soon" src/mode-notice.sh \
     '/            1 => "1 => Line Mode"\.to_string(),/d'
 mutant bug "line mode's hints say how to select" src/hud-hints.sh \
     's/        _ if \${!mode} == 1 => {/        _ if false => {/'
+
+# ---- undo, redo and select all (step 5a) ----
+mutant bug "a new change keeps redo" src/history-push.sh \
+    '/^    \${!history}\.redo\.clear();$/d'
+mutant bug "the history keeps every change" src/history-push.sh \
+    's/    if \${!history}\.undo\.len() > UNDO_LIMIT {/    if false {/'
+mutant bug "the history drops the newest change" src/history-push.sh \
+    's/        \${!history}\.undo\.remove(0);/        ${!history}.undo.pop();/'
+mutant bug "undo doesn't keep the page for redo" src/history-step.sh \
+    's/                \${v}to\.push(std::mem::replace(\&mut \${!doc}, snapshot));/                let _ = \&${v}to; ${!doc} = snapshot;/'
+mutant bug "undo and redo are swapped" src/history-step.sh \
+    's/        let (\${v}from, \${v}to) = if \${!back} {/        let (${v}from, ${v}to) = if !${!back} {/'
+mutant bug "dirty isn't worked out after a step" src/history-step.sh \
+    's/        \${!dirty} = \${!doc} != \${!saved};/        let _ = \&${!saved};/'
+mutant bug "nothing to undo still sets dirty" src/history-step.sh \
+    's/    if \${!stepped} {/    if true {/'
+mutant bug "select all takes elements with no shape" src/select-all.sh \
+    's/        \.filter(|(_, node)| SHAPE_TAGS\.contains(\&node\.tag\.as_str()))/        .filter(|_| true)/'
+mutant bug "select all keeps the group" src/select-all.sh \
+    '/^    \${!selection}\.group = None;$/d'
+mutant bug "Ctrl-Shift-Z undoes" src/ctrl-keys.sh \
+    '/                KeyCode::Z if \${!shift} => /d'
+mutant bug "Ctrl-Y does nothing" src/ctrl-keys.sh \
+    '/                KeyCode::Y => /d'
+mutant bug "Ctrl-A does nothing" src/ctrl-keys.sh \
+    '/                KeyCode::A => /d'
+mutant bug "the Ctrl chords work without Ctrl" src/ctrl-keys.sh \
+    's/    if \${!ctrl} {/    if true {/'
+mutant bug "the hints never say Ctrl-Z" src/hud-hints.sh \
+    's/let \${!hints} = if \${!undo} {/let ${!hints} = if false {/'
 
 # ---- <g> groups ----
 mutant bug "a right-click outside any group selects the clicked node" src/select-group.sh \

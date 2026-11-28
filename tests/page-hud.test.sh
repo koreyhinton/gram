@@ -32,6 +32,7 @@ export ${v}hud_Hints=hints
 export ${v}hints_Doc=doc
 export ${v}hints_Selection=selection
 export ${v}hints_Mode=mode
+export ${v}hints_Undo=can_undo
 export ${v}hints_Hints=hints
 export ${v}banner_Text=message
 export ${v}notice_Mode=mode
@@ -183,6 +184,7 @@ fn a_mode_change_says_so_for_a_few_seconds() {
 #[test]
 fn the_hints_say_how_to_edit_once_something_is_selected() {
     let mode = 0u8;
+    let can_undo = false;
     let doc = Doc {
         root_attrs: vec![],
         nodes: ["circle", "rect"]
@@ -217,6 +219,7 @@ fn the_hints_say_how_to_draw_a_line_in_line_mode() {
     let doc = Doc::default();
     let selection = Selection::default();
     let mode = 1u8;
+    let can_undo = false;
     ` ./hud-hints.sh ${v}hints_ `
     assert!(hints.starts_with("click twice: draw a line"), "{}", hints);
 }
