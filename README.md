@@ -63,7 +63,10 @@ The line above the status bar lists what applies right now. A `*` beside a file 
 
 ```bash
 ./test.sh          # generates tests/*.rs from tests/*.test.sh, then cargo test
-tests/mutate.sh    # breaks each feature in turn; a test must catch every break
+tests/mutate.sh    # breaks each feature in turn; a test must catch every break,
+                   # and every test must catch one (the full run, as CI does)
+tests/mutate.sh --changed     # only the mutants your changes against main affect
+tests/mutate.sh --name grid   # only mutants whose name matches; add --list to just list them
 ```
 
 ## The port
