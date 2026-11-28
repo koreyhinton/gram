@@ -11,8 +11,8 @@
 #
 # With nothing selected: how to pan, zoom, fit, select and select a group.
 # With a selection: that Enter edits the node being edited (the last one
-# selected, named by its tag), that a second click deselects a node, and
-# that Esc deselects all. With a group selected: that Enter moves the group
+# selected, named by its tag), that the arrow keys move the selection, that
+# a second click deselects a node, and that Esc deselects all. With a group selected: that Enter moves the group
 # and a right-click goes to the group above. In a two-click mode (1 line, 2
 # arrow, 3 rect, 4 rounded rect, 8 fork/join bar): that two clicks draw one;
 # in a one-click mode (5 decision, 6 initial, 7 final node, 9 text): that a
@@ -54,11 +54,11 @@ cat << EOF
             }
         ),
         (Some(tag), Some(_)) => format!(
-            "Enter: edit the <{}> (the group moves with it), right-click: the group above, Esc: deselect all",
+            "Enter: edit the <{}> (the group moves with it), arrows: move, right-click: the group above, Esc: deselect all",
             tag
         ),
         (Some(tag), None) => format!(
-            "Enter: edit the <{}>, click again: deselect, right-click: its group, Esc: deselect all",
+            "Enter: edit the <{}>, arrows: move, click again: deselect, right-click: its group, Esc: deselect all",
             tag
         ),
         (None, _) => {

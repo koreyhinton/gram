@@ -7,7 +7,8 @@
 #
 # Pushes a copy of Doc onto History.undo and clears History.redo (a new
 # change means the undone ones can't come back). At most UNDO_LIMIT
-# snapshots are kept; the oldest goes first.
+# snapshots are kept; the oldest goes first. It ends an arrow-key run
+# (History.nudge), so the next arrow press snapshots again.
 
 v=$1
 # maps
@@ -21,5 +22,6 @@ cat << EOF
         ${!history}.undo.remove(0);
     }
     ${!history}.redo.clear();
+    ${!history}.nudge = None;
 
 EOF

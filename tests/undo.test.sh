@@ -59,6 +59,10 @@ export ${v}map_Before=\(\&before\)
 export ${v}map_After=\(\&after\)
 export ${v}map_Others=\(\&others\)
 export ${v}map_Nodes=doc.nodes
+export ${v}nudge_History=history
+export ${v}nudge_Doc=doc
+export ${v}nudge_Selection=selection
+export ${v}nudge_Delta=delta
 export ${v}hints_Doc=doc
 export ${v}hints_Selection=selection
 export ${v}hints_Mode=mode
@@ -392,4 +396,77 @@ fn the_hints_say_ctrl_z_when_there_is_something_to_undo() {
     ` ./hud-hints.sh ${v}hints_ `
     assert!(hints.ends_with(", Ctrl-Z: undo"), "{}", hints);
 }
+
+// ---- arrow-key moves (devbox@11b5deb) ----
+
+#[test]
+fn a_run_of_arrow_presses_undoes_as_one() {
+    let svg_text = SVG_EX;
+    ` ./svg-load.sh ${v}load_ `
+    let saved = doc.clone();
+    let mut history = History::default();
+    let mut dirty = false;
+    let mut stepped = false;
+    let selection = Selection { ids: vec![2, 3], group: None };
+    for delta in [vec2(1.0, 0.0), vec2(1.0, 0.0), vec2(0.0, -1.0)] {
+        ` ./nudge.sh ${v}nudge_ `
+    }
+    assert_eq!(attr(&doc.nodes[2], "x"), "327");
+    assert_eq!(history.undo.len(), 1);
+
+    let back = true;
+    ` ./history-step.sh ${v}step_ `
+    assert!(stepped);
+    assert_eq!(doc, saved);
+    assert!(!dirty);
+}
+
+#[test]
+fn a_new_selection_starts_a_new_run() {
+    let svg_text = SVG_EX;
+    ` ./svg-load.sh ${v}load_ `
+    let mut history = History::default();
+    let delta = vec2(1.0, 0.0);
+    let selection = Selection { ids: vec![2], group: None };
+    ` ./nudge.sh ${v}nudge_ `
+    ` ./nudge.sh ${v}nudge_ `
+    let selection = Selection { ids: vec![0], group: None };
+    ` ./nudge.sh ${v}nudge_ `
+    assert_eq!(history.undo.len(), 2);
+    // back on the first selection: a new run again
+    let selection = Selection { ids: vec![2], group: None };
+    ` ./nudge.sh ${v}nudge_ `
+    assert_eq!(history.undo.len(), 3);
+}
+
+#[test]
+fn another_change_or_an_undo_ends_the_run() {
+    let svg_text = SVG_EX;
+    ` ./svg-load.sh ${v}load_ `
+    let saved = doc.clone();
+    let mut history = History::default();
+    let mut dirty = false;
+    let mut stepped = false;
+    let delta = vec2(0.0, 1.0);
+    let selection = Selection { ids: vec![2], group: None };
+
+    // a drawn line between two presses: three undo steps
+    ` ./nudge.sh ${v}nudge_ `
+    ` ./history-push.sh ${v}push_ `
+    draw_a_line(&mut doc, 25.0, 25.0, 25.0, 519.0);
+    ` ./nudge.sh ${v}nudge_ `
+    assert_eq!(history.undo.len(), 3);
+
+    // an undo, then a press: a new run, so a second undo still gets back
+    // to before the line
+    let back = true;
+    ` ./history-step.sh ${v}step_ `
+    ` ./nudge.sh ${v}nudge_ `
+    assert_eq!(history.undo.len(), 3);
+    ` ./history-step.sh ${v}step_ `
+    ` ./history-step.sh ${v}step_ `
+    ` ./history-step.sh ${v}step_ `
+    assert_eq!(doc, saved);
+}
+
 EOF

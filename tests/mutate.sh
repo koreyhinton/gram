@@ -89,7 +89,7 @@ for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-pa
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
     node-apply map banner mode-notice hud-hints key-presses select-group transform-note \
     add-line history-push history-step select-all ctrl-keys add-arrow add-rect edit-escape \
-    node-edit-check add-node add-text; do
+    node-edit-check add-node add-text arrow-delta nudge; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -458,6 +458,36 @@ mutant bug "a circle following a line gets a NaN center" src/map.sh \
 # TDDTEST17 FIX: the old setMouseRects grew each box from its last one
 mutant bug "click boxes keep their old extent" src/mouse-rects.sh \
     's/^        \${v}node\.bounds = Rect::new(min_x, min_y, max_x - min_x, max_y - min_y);$/        let fresh = Rect::new(min_x, min_y, max_x - min_x, max_y - min_y); ${v}node.bounds = if ${v}node.bounds.w > 0.0 { ${v}node.bounds.combine_with(fresh) } else { fresh };/'
+
+# ---- arrow-key moves (devbox@11b5deb, step 10; live, as gh-19 later made them) ----
+# TDDTEST18 FTR
+mutant bug "the up arrow moves down" src/arrow-delta.sh \
+    's/                KeyCode::Up => vec2(0\.0, -1\.0),/                KeyCode::Up => vec2(0.0, 1.0),/'
+mutant bug "a held arrow doesn't repeat" src/arrow-delta.sh \
+    's/        if let KeyEvent::Down { key, \.\. } = \*event {/        if let KeyEvent::Down { key, repeat: false } = *event {/'
+mutant bug "every arrow press is its own undo" src/nudge.sh \
+    's/    if \${!history}\.nudge\.as_ref() != Some(\&\${!selection}\.ids) {/    if true {/'
+mutant bug "an arrow run goes on after the selection changes" src/nudge.sh \
+    's/    if \${!history}\.nudge\.as_ref() != Some(\&\${!selection}\.ids) {/    if ${!history}.nudge.is_none() {/'
+mutant bug "another change doesn't end an arrow run" src/history-push.sh \
+    '/^    \${!history}\.nudge = None;$/d'
+mutant bug "an undo doesn't end an arrow run" src/history-step.sh \
+    '/^    \${!history}\.nudge = None;$/d'
+mutant bug "arrows don't move circles" src/nudge.sh \
+    '/            "circle" => &\[("cx", true), ("cy", false)\],/d'
+mutant bug "arrows move only a line's start" src/nudge.sh \
+    's/            "line" => &\[("x1", true), ("y1", false), ("x2", true), ("y2", false)\],/            "line" => \&[("x1", true), ("y1", false)],/'
+mutant bug "arrows move a polyline only across" src/nudge.sh \
+    's/                        let shift = if i % 2 == 0 { \${v}dx } else { \${v}dy };/                        let shift = if i % 2 == 0 { ${v}dx } else { 0.0 };/'
+mutant bug "arrows don't move text" src/nudge.sh \
+    's/            "rect" | "text" => /            "rect" => /'
+mutant bug "arrows move a node's y by the x change" src/nudge.sh \
+    's/                let shift = if is_x { \${v}dx } else { \${v}dy };/                let shift = ${v}dx;/'
+mutant bug "the hints don't say the arrows move" src/hud-hints.sh \
+    's/, arrows: move//'
+# the Pins and Connectors templates (steps 11 and 12), kept as examples
+mutant bug "the pins example lost its final node's dot" docs/examples/pins.svg \
+    '/<circle cx="696" cy="131" r="6"/d'
 
 # ---- a node edit handed to an editor that returns at once (xdg-open) ----
 mutant bug "a hand-off editor ends the edit at once" src/node-edit-check.sh \

@@ -228,11 +228,14 @@ struct Selection {
 
 // a page's undo history: snapshots of its Doc, the newest last. A change
 // pushes the page as it was onto undo and clears redo (history-push.sh);
-// undo and redo move the page between the two (history-step.sh).
+// undo and redo move the page between the two (history-step.sh). nudge is
+// the selection an arrow-key run is moving (nudge.sh): its presses share one
+// snapshot, and any other change, an undo or a redo ends the run.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct History {
     undo: Vec<Doc>,
     redo: Vec<Doc>,
+    nudge: Option<Vec<usize>>,
 }
 
 // what a Ctrl key chord asks for (ctrl-keys.sh)
