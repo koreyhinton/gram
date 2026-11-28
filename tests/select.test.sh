@@ -5,7 +5,8 @@
 # (devbox@c702432): click to select, the selection colors, a node out as
 # XML, the edit back in, and the edit carried over to the other selected
 # nodes; then its text nodes (devbox@8c8c666). A node edit round trip runs a
-# real editor process (sed -i).
+# real editor process (sed -i). Last, the old app's first TDD tests
+# (devbox@ed1a227): TDD TEST 0 and 1, whose fixes gram already has.
 #
 # The interface these tests fix:
 #   hit-test.sh    binds Doc, Index, Pos and Hit. Of the shapes whose click
@@ -433,6 +434,71 @@ fn a_node_edit_round_trip_moves_the_selection_together() {
     assert_eq!(attr(&doc.nodes[1], "points"), "75 52 75 110 65 100 75 110 85 100");
     // the rect's click box moved with it
     assert_eq!(doc.nodes[2].bounds.x, 24.0);
+}
+
+// ---- the old app's TDD tests (devbox@ed1a227) ----
+
+// svgEx at devbox@ed1a227, with its labels
+const SVG_EX_5: &str = r#"<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="750" height="750" viewBox="0,0,750,750">
+    <circle cx="375" cy="40" r="10" stroke="black" stroke-width="1"/>
+    <polyline points="375 52 375 110 365 100 375 110 385 100" stroke="black" fill="transparent" stroke-width="1"/>
+    <rect rx="10" ry="10" x="325" y="112" width="100" height="50" stroke="black" fill="transparent" stroke-width="1"/>
+    <text x="333" y="134" fill="black">Receive</text>
+    <text x="333" y="154" fill="black">Request</text>
+</svg>"#;
+
+// TDD TEST 0 - RECT MOVE X SHOULD MOVE SUBSELECTED TEXT
+#[test]
+fn tdd_00_rect_move_x_moves_the_selected_text() {
+    let svg_text = SVG_EX_5;
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let x = attr(&doc.nodes[3], "x").parse::<f64>().unwrap();
+    let mut selection = Selection::default();
+    // circle, polyline, both labels, then the rect (the one being edited)
+    for click in [(378.0, 41.0), (376.0, 92.0), (364.0, 129.0), (364.0, 151.0), (412.0, 113.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./hit-test.sh ${v}hit_ `
+        ` ./select.sh ${v}sel_ `
+    }
+    assert_eq!(selection.ids, vec![0, 1, 3, 4, 2]);
+
+    // the rect's XML, with its first 325 made 25, as the test's textarea
+    let id = *selection.ids.last().unwrap();
+    ` ./node-xml.sh ${v}xml_ `
+    let (old_x, new_x) = (325.0, 25.0);
+    let edit_text = format!("<svg>{}</svg>", xml.replacen("325", "25", 1));
+    ` ./svg-load.sh ${v}eload_ `
+    let before = doc.nodes[id].clone();
+    ` ./node-apply.sh ${v}apply_ `
+    let after = doc.nodes[id].clone();
+    let others: Vec<usize> = selection.ids[..selection.ids.len() - 1].to_vec();
+    ` ./map.sh ${v}map_ `
+
+    let affected_x = attr(&doc.nodes[3], "x").parse::<f64>().unwrap();
+    assert_eq!(old_x - new_x, x - affected_x);
+    let id = 3;
+    ` ./node-xml.sh ${v}xml_ `
+    assert_eq!(xml, r#"<text x="33" y="134" fill="black">Receive</text>"#);
+}
+
+// TDD TEST 1 - CLICK WHITESPACE BEYOND TEXT SHOULD SELECT SURROUNDING RECT
+#[test]
+fn tdd_01_a_click_beyond_a_label_selects_the_rect_around_it() {
+    let svg_text = SVG_EX_5;
+    ` ./svg-load.sh ${v}load_ `
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let mut selection = Selection::default();
+
+    let pos = vec2(411.0, 129.0);
+    ` ./hit-test.sh ${v}hit_ `
+    ` ./select.sh ${v}sel_ `
+
+    // the rect is the one being edited (EDIT_COLOR), not the label
+    assert_eq!(selection.ids.last(), Some(&2));
+    assert_eq!(selection.ids, vec![2]);
 }
 
 #[test]
