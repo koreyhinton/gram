@@ -1,15 +1,18 @@
 #!/bin/bash
 
-# add-rect: rect mode (key 3). A click sets one corner; the next click sets
-# the opposite one (the old issueClick in numMode 3, devbox@8faf51d).
+# add-rect: rect mode (key 3), and rounded rect mode (key 4). A click sets
+# one corner; the next click sets the opposite one (the old issueClick in
+# numMode 3, devbox@8faf51d, and numMode 4, devbox@01c476e).
 #
 #   input:         Pos    Vec2, the click in world units
 #   input/output:  From   Option<Vec2> (declared by the caller), the first
 #                         click while it waits for the other corner
 #   input/output:  Nodes  Vec<Node>, the page's nodes
+#   input:         Radius &str, the corners' rx and ry: "0" for a rect, "10"
+#                         for a rounded rect
 #
 # The first click sets From. The second appends, at the top level,
-# <rect rx="0" ry="0" x y width height stroke="black" fill="transparent"
+# <rect rx=Radius ry=Radius x y width height stroke="black" fill="transparent"
 # stroke-width="1"/> between the two clicks. It can be drawn in any direction:
 # x and y are the smaller corner, so width and height are never negative (the
 # old app wrote a negative size, which svg doesn't draw). Clicks are rounded to
@@ -17,7 +20,7 @@
 
 v=$1
 # maps
-. ${NSMAP}/bind ${v} Pos From Nodes
+. ${NSMAP}/bind ${v} Pos From Nodes Radius
 
 cat << EOF
 
@@ -32,8 +35,8 @@ cat << EOF
             ${!nodes}.push(Node {
                 tag: "rect".to_string(),
                 attrs: vec![
-                    ("rx".to_string(), "0".to_string()),
-                    ("ry".to_string(), "0".to_string()),
+                    ("rx".to_string(), ${!radius}.to_string()),
+                    ("ry".to_string(), ${!radius}.to_string()),
                     ("x".to_string(), format!("{}", ${v}corner.x)),
                     ("y".to_string(), format!("{}", ${v}corner.y)),
                     ("width".to_string(), format!("{}", ${v}size.x)),

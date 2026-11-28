@@ -15,8 +15,8 @@
 #       pan and fit. In line mode (1), that two clicks draw a line.
 #   banner.sh     binds Text. The text on a BANNER_BG box sized to it, across
 #       the top of the canvas, right of the tree.
-#   mode-notice.sh  binds Mode and Since. "0 => Select Mode", "1 => Line
-#       Mode" or "N => Coming Soon", top right, until MODE_NOTICE_SECS have
+#   mode-notice.sh  binds Mode and Since. Each mode's name ("0 => Select
+#       Mode" ... "9 => Text Mode"), top right, until MODE_NOTICE_SECS have
 #       passed.
 
 : "${NSMAP:?set NSMAP (see test.sh)}"
@@ -180,11 +180,22 @@ fn a_mode_change_says_so_for_a_few_seconds() {
     let mode = 3u8;
     ` ./mode-notice.sh ${v}notice_ `
     assert!(drawn().contains(&Drawn::Text { text: "3 => Rect Mode".to_string() }), "{:?}", drawn());
+    // devbox@01c476e
+    for (mode, name) in [
+        (5u8, "5 => Decision Node Mode"),
+        (6, "6 => Initial Node Mode"),
+        (7, "7 => Final Node Mode"),
+        (8, "8 => Fork/Join Node Mode"),
+        (9, "9 => Text Mode"),
+    ] {
+        ` ./mode-notice.sh ${v}notice_ `
+        assert!(drawn().contains(&Drawn::Text { text: name.to_string() }), "{:?}", drawn());
+    }
 
     let mode = 4u8;
     let since = MODE_NOTICE_SECS - 0.01;
     ` ./mode-notice.sh ${v}notice_ `
-    assert!(drawn().contains(&Drawn::Text { text: "4 => Coming Soon".to_string() }));
+    assert!(drawn().contains(&Drawn::Text { text: "4 => Rounded Rect Mode".to_string() }));
 
     let since = MODE_NOTICE_SECS;
     ` ./mode-notice.sh ${v}notice_ `
@@ -299,6 +310,27 @@ fn tdd_06_deselecting_the_last_node_returns_the_hints() {
     ` ./select.sh ${v}sel_ `
     ` ./hud-hints.sh ${v}hints_ `
     assert!(hints.starts_with("click: select"), "{}", hints);
+}
+
+
+// ---- devbox@01c476e ----
+
+#[test]
+fn the_hints_say_how_to_draw_or_place_in_modes_4_to_9() {
+    let doc = Doc::default();
+    let selection = Selection::default();
+    let (can_undo, editing) = (false, false);
+    for (mode, start) in [
+        (4u8, "click twice: draw a rounded rect"),
+        (8, "click twice: draw a fork/join bar"),
+        (5, "click: place a decision node"),
+        (6, "click: place an initial node"),
+        (7, "click: place a final node"),
+        (9, "click: place a text (it opens in your editor)"),
+    ] {
+        ` ./hud-hints.sh ${v}hints_ `
+        assert!(hints.starts_with(start), "mode {}: {}", mode, hints);
+    }
 }
 
 EOF

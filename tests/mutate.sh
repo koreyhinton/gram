@@ -89,7 +89,7 @@ for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-pa
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
     node-apply map banner mode-notice hud-hints key-presses select-group transform-note \
     add-line history-push history-step select-all ctrl-keys add-arrow add-rect edit-escape \
-    node-edit-check; do
+    node-edit-check add-node add-text; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -334,7 +334,7 @@ mutant bug "a drawn line goes inside the first node" src/add-line.sh \
 mutant bug "line mode says Coming Soon" src/mode-notice.sh \
     '/            1 => "1 => Line Mode"\.to_string(),/d'
 mutant bug "line mode's hints say how to select" src/hud-hints.sh \
-    's/        _ if (1\.\.=3)\.contains(\&\${!mode}) => format!(/        _ if false => format!(/'
+    's/        _ if \[1, 2, 3, 4, 8\]\.contains(\&\${!mode}) => format!(/        _ if false => format!(/'
 
 # ---- undo, redo and select all (step 5a) ----
 mutant bug "a new change keeps redo" src/history-push.sh \
@@ -398,7 +398,7 @@ mutant bug "the arrowhead's arms are swapped" src/models.sh \
 mutant bug "arrow and rect modes say Coming Soon" src/mode-notice.sh \
     '/            [23] => "[23] => [A-Za-z]* Mode"\.to_string(),/d'
 mutant bug "arrow and rect modes' hints say how to draw a line" src/hud-hints.sh \
-    's/        _ if (1\.\.=3)\.contains(\&\${!mode}) => format!(/        _ if (1..=1).contains(\&${!mode}) => format!(/'
+    's/        _ if \[1, 2, 3, 4, 8\]\.contains(\&\${!mode}) => format!(/        _ if [1].contains(\&${!mode}) => format!(/'
 # Esc twice drops an open edit
 mutant bug "the first Esc drops the edit" src/edit-escape.sh \
     's/        if \${v}confirms {/        if true {/'
@@ -408,6 +408,45 @@ mutant bug "while editing the hints don't say how to drop the edit" src/hud-hint
     's/        _ if \${!editing} => /        _ if false => /'
 mutant bug "while editing the hints offer undo" src/hud-hints.sh \
     's/let \${!hints} = if \${!undo} \&\& !\${!editing} {/let ${!hints} = if ${!undo} {/'
+
+# ---- rounded rects, one-click nodes, fork/join bars, text (devbox@01c476e, step 7) ----
+# TDDTEST8 FTR
+mutant bug "a rounded rect has square corners" src/add-rect.sh \
+    's/("rx"\.to_string(), \${!radius}\.to_string()),/("rx".to_string(), "0".to_string()),/'
+# TDDTEST9 FIX: the old rect -> rect wrote x and y as point lists (NaN)
+mutant bug "a rect follows a rect through points" src/map.sh \
+    's/        let is_polyline = dest\.tag == "polyline";/        let is_polyline = dest.tag == "polyline" || (dest.tag == "rect" \&\& ${!after}.tag == "rect");/'
+# TDDTEST10 FTR
+mutant bug "a decision node's diamond is the wrong size" src/models.sh \
+    's/^const DECISION_HALF: f32 = 7\.0;/const DECISION_HALF: f32 = 8.0;/'
+# TDDTEST11 FTR
+mutant bug "an initial node is hollow" src/add-node.sh \
+    's/        6 => \${!nodes}\.push(\${v}circle(INITIAL_R, "black")),/        6 => ${!nodes}.push(${v}circle(INITIAL_R, "transparent")),/'
+# TDDTEST12 FTR
+mutant bug "a final node has no dot" src/add-node.sh \
+    '/            \${!nodes}\.push(\${v}circle(FINAL_DOT_R, "black"));/d'
+mutant bug "a final node's ring comes before its dot" src/add-node.sh \
+    's/circle(FINAL_DOT_R, "black")/circle(FINAL_RING_R, "transparent")__SWAP/; s/circle(FINAL_RING_R, "transparent"))/circle(FINAL_DOT_R, "black"))/; s/__SWAP//'
+mutant bug "other modes place a node" src/add-node.sh \
+    's/^        _ => {}$/        _ => ${!nodes}.push(${v}circle(INITIAL_R, "black")),/'
+# TDDTEST13 FTR
+mutant bug "a fork/join bar is 1 wide" src/add-line.sh \
+    's/("stroke-width"\.to_string(), \${!width}\.to_string()),/("stroke-width".to_string(), "1".to_string()),/'
+# TDDTEST14 FTR
+mutant bug "a new text isn't selected" src/add-text.sh \
+    '/^    \${!selection} = Selection { ids: vec!\[\${!nodes}\.len() - 1\], group: None };$/d'
+mutant bug "text mode stays in text mode" src/add-text.sh \
+    '/^    \${!mode} = 0;$/d'
+mutant bug "a new text doesn't open in the editor" src/add-text.sh \
+    's/^    let \${!open} = true;$/    let ${!open} = false;/'
+mutant bug "a new text sits right on the click" src/add-text.sh \
+    's/(\${!pos}\.round() + TEXT_OFFSET)/(${!pos}.round())/'
+mutant bug "modes 4 to 9 say Coming Soon" src/mode-notice.sh \
+    '/            [4-9] => "[4-9] => .* Mode"\.to_string(),/d'
+mutant bug "the one-click modes' hints say how to select" src/hud-hints.sh \
+    's/        _ if \[5, 6, 7, 9\]\.contains(\&\${!mode}) => format!(/        _ if false => format!(/'
+mutant bug "rounded rect and fork/join modes' hints say how to select" src/hud-hints.sh \
+    's/        _ if \[1, 2, 3, 4, 8\]\.contains(\&\${!mode}) => format!(/        _ if [1, 2, 3].contains(\&${!mode}) => format!(/'
 
 # ---- a node edit handed to an editor that returns at once (xdg-open) ----
 mutant bug "a hand-off editor ends the edit at once" src/node-edit-check.sh \
@@ -459,6 +498,9 @@ copy_repo() {
     rm -f "$2/src/"*.sh
     cp "$1/src/"*.sh "$2/src/"
     cp "$1/tests/"*.test.sh "$2/tests/"
+    # the example diagrams some tests open (docs/examples)
+    rm -rf "$2/docs"
+    cp -r "$1/docs" "$2/docs"
     # cargo needs the bin target to exist; the tests don't compile it
     [[ -f "$2/src/main.rs" ]] || echo 'fn main() {}' > "$2/src/main.rs"
 }

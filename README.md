@@ -57,7 +57,7 @@ With no editor set, `xdg-open` hands the node to your desktop's text editor and 
 | **Ctrl-Z** | undo the last change to the page (up to 100) |
 | **Ctrl-Y** or **Ctrl-Shift-Z** | redo what was undone |
 | **Ctrl-A** | select every shape on the page |
-| **0**–**9** | pick the mode: 0 selects; 1 draws lines, 2 arrows, 3 rects (click at each end, or two corners); the others do nothing yet |
+| **0**–**9** | pick the mode: 0 selects. Two clicks draw: 1 a line, 2 an arrow, 3 a rect, 4 a rounded rect, 8 a fork/join bar. One click places: 5 a decision node, 6 an initial node, 7 a final node, 9 a text (it opens in your editor to type over the `?`) |
 | wheel | zoom about the cursor (over the tree: scroll it) |
 | middle-drag, or Space + drag | pan |
 | **F** or **Home** | fit the page to the window |

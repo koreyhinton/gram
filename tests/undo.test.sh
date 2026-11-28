@@ -48,6 +48,7 @@ export ${v}ctrl_Shift=shift
 export ${v}ctrl_Action=action
 export ${v}line_Pos=pos
 export ${v}line_From=from
+export ${v}line_Width=width
 export ${v}line_Nodes=doc.nodes
 export ${v}apply_Edited=\(\&edited.nodes[0]\)
 export ${v}apply_Target=doc.nodes[id]
@@ -98,6 +99,7 @@ fn attr<'a>(node: &'a Node, name: &str) -> &'a str {
 // a line from (x1, y1) to (x2, y2), drawn as line mode draws it
 fn draw_a_line(doc: &mut Doc, x1: f32, y1: f32, x2: f32, y2: f32) {
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(x1, y1), (x2, y2)] {
         let pos = vec2(click.0, click.1);
         ` ./add-line.sh ${v}line_ `

@@ -55,6 +55,11 @@ export ${v}map_Nodes=doc.nodes
 export ${v}line_Nodes=doc.nodes
 export ${v}line_Pos=pos
 export ${v}line_From=from
+export ${v}rect_Pos=pos
+export ${v}rect_From=from
+export ${v}rect_Nodes=doc.nodes
+export ${v}rect_Radius=radius
+export ${v}line_Width=width
 # the edit's XML, read back
 export ${v}eload_Text=edit_text
 export ${v}eload_Doc=edited
@@ -526,6 +531,7 @@ fn tdd_04_mode_0_can_move_a_line_subselection() {
     let svg_text = SVG_EX_5;
     ` ./svg-load.sh ${v}load_ `
     let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "0");
     for click in [(250.0, y_start), (500.0, y_start)] {
         let pos = vec2(click.0, click.1);
         ` ./add-line.sh ${v}line_ `
@@ -629,6 +635,46 @@ fn a_line_follows_a_line_end_by_end() {
     let moved = &doc.nodes[1];
     let ends = (attr(moved, "x1"), attr(moved, "y1"), attr(moved, "x2"), attr(moved, "y2"));
     assert_eq!(ends, ("100", "100", "170", "115"));
+}
+
+
+// ---- devbox@01c476e ----
+
+// TDD TEST 9 - RECT MOVE X SHOULD MOVE SUBSELECTED RECT
+#[test]
+fn tdd_09_rect_move_x_moves_a_selected_rect() {
+    let (rect1_x, rect2_x, mv_x) = (325.0, 30.0, 44.0);
+    let svg_text = SVG_EX_5;
+    ` ./svg-load.sh ${v}load_ `
+    // a rounded rect, drawn in mode 4
+    let mut from: Option<Vec2> = None;
+    let (width, radius) = ("1", "10");
+    for click in [(rect2_x, 30.0), (90.0, 90.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./add-rect.sh ${v}rect_ `
+    }
+    ` ./mouse-rects.sh ${v}rects_ `
+    ` ./spatial-index.sh ${v}index_ `
+    let mut selection = Selection::default();
+    for click in [(rect1_x, 112.0), (rect2_x, 30.0)] {
+        let pos = vec2(click.0, click.1);
+        ` ./hit-test.sh ${v}hit_ `
+        ` ./select.sh ${v}sel_ `
+    }
+    assert_eq!(selection.ids, vec![2, 5]);
+
+    // the rounded rect's x 30 -> 74
+    let id = 5;
+    ` ./node-xml.sh ${v}xml_ `
+    let edit_text = format!("<svg>{}</svg>", xml.replacen("30", &(rect2_x + mv_x).to_string(), 1));
+    ` ./svg-load.sh ${v}eload_ `
+    let before = doc.nodes[id].clone();
+    ` ./node-apply.sh ${v}apply_ `
+    let after = doc.nodes[id].clone();
+    let others = vec![2usize];
+    ` ./map.sh ${v}map_ `
+
+    assert_eq!(attr(&doc.nodes[2], "x"), (rect1_x + mv_x).to_string());
 }
 
 EOF

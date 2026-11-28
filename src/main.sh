@@ -73,12 +73,23 @@ export ${v}group_Selection=page.selection
 export ${v}line_Pos=world
 export ${v}line_From=page.draw_from
 export ${v}line_Nodes=page.doc.nodes
+export ${v}line_Width=line_width
 export ${v}arrow_Pos=world
 export ${v}arrow_From=page.draw_from
 export ${v}arrow_Nodes=page.doc.nodes
 export ${v}rect_Pos=world
 export ${v}rect_From=page.draw_from
 export ${v}rect_Nodes=page.doc.nodes
+export ${v}rect_Radius=rect_radius
+# a one-click node, or a new text that opens in the editor
+export ${v}node_Pos=world
+export ${v}node_Mode=ws.mode
+export ${v}node_Nodes=page.doc.nodes
+export ${v}text_Pos=world
+export ${v}text_Nodes=page.doc.nodes
+export ${v}text_Selection=page.selection
+export ${v}text_Mode=ws.mode
+export ${v}text_Open=open_text
 # Esc while the editor is open
 export ${v}esc_Pressed=esc_pressed
 export ${v}esc_Now=now
@@ -217,6 +228,9 @@ cat << EOF
         // an edit Esc twice dropped: what it was (a node, or a page's file
         // name) and when, for the banner
         let mut dropped: Option<(EditKind, String, f64)> = None;
+        // a text just placed in text mode: open it in the editor next frame,
+        // as Enter would
+        let mut edit_new_text = false;
         // when the mode was last picked: at the start, as the old onStart
         // picked mode 0, so its notice shows first
         let mut mode_picked_at = get_time();
@@ -474,8 +488,9 @@ cat << EOF
                 lost_releases = get_keys_down().into_iter().collect();
             }
 
-            // 0-9: the mode (0 selects, 1 draws lines, 2 arrows, 3 rects;
-            // the others do nothing yet). A new mode drops a first click.
+            // 0-9: the mode (0 selects; 1-9 draw: line, arrow, rect,
+            // rounded rect, decision, initial, final node, fork/join, text).
+            // A new mode drops a first click.
             let digits = [
                 KeyCode::Key0, KeyCode::Key1, KeyCode::Key2, KeyCode::Key3, KeyCode::Key4,
                 KeyCode::Key5, KeyCode::Key6, KeyCode::Key7, KeyCode::Key8, KeyCode::Key9,
@@ -492,7 +507,8 @@ cat << EOF
 
             // Enter: the node being edited (the last selected) goes to the
             // editor as XML in a temp file
-            let enter = presses.contains(&KeyCode::Enter) || presses.contains(&KeyCode::KpEnter);
+            let open_new_text = std::mem::take(&mut edit_new_text);
+            let enter = presses.contains(&KeyCode::Enter) || presses.contains(&KeyCode::KpEnter) || open_new_text;
             if enter
                 && !editing
                 && let Some(job_page) = ws.open
@@ -596,25 +612,39 @@ cat << EOF
                     ` ./canvas-update.sh ${v}pan_ `
                 }
 
-                // a click selects or deselects the node under it; in line,
-                // arrow or rect mode, it starts or ends one
-                if canvas_click && page.error.is_none() && (1..=3).contains(&ws.mode) {
+                // a click selects or deselects the node under it; in a
+                // drawing mode it starts or ends a shape (1 line, 2 arrow,
+                // 3 rect, 4 rounded rect, 8 fork/join bar) or places one
+                // (5 decision, 6 initial, 7 final node, 9 text)
+                let two_clicks = [1, 2, 3, 4, 8].contains(&ws.mode);
+                let one_click = [5, 6, 7, 9].contains(&ws.mode);
+                if canvas_click && page.error.is_none() && (two_clicks || one_click) {
                     let world = page.canvas.offset + mouse / page.canvas.zoom;
                     let count = page.doc.nodes.len();
-                    // the second click adds the shape: the page before it can be undone back to
-                    if page.draw_from.is_some() {
+                    // the click that adds a shape: the page before it can be undone back to
+                    if one_click || page.draw_from.is_some() {
                         ` ./history-push.sh ${v}push_ `
                     }
 
+                    let line_width = if ws.mode == 8 { "3" } else { "1" };
+                    let rect_radius = if ws.mode == 4 { "10" } else { "0" };
                     match ws.mode {
-                        1 => {
+                        1 | 8 => {
                             ` ./add-line.sh ${v}line_ `
                         }
                         2 => {
                             ` ./add-arrow.sh ${v}arrow_ `
                         }
-                        _ => {
+                        3 | 4 => {
                             ` ./add-rect.sh ${v}rect_ `
+                        }
+                        9 => {
+                            ` ./add-text.sh ${v}text_ `
+
+                            edit_new_text = open_text;
+                        }
+                        _ => {
+                            ` ./add-node.sh ${v}node_ `
                         }
                     }
 
@@ -665,9 +695,9 @@ cat << EOF
                     ` ./draw-doc.sh ${v}draw_ `
                 }
                 // line mode: the line so far, from its first click to the mouse
-                if (1..=3).contains(&ws.mode) && let Some(from) = page.draw_from {
+                if [1, 2, 3, 4, 8].contains(&ws.mode) && let Some(from) = page.draw_from {
                     let to = page.canvas.offset + mouse / page.canvas.zoom;
-                    if ws.mode == 3 {
+                    if ws.mode == 3 || ws.mode == 4 {
                         let corner = from.min(to);
                         let size = (from - to).abs();
                         draw_rectangle_lines(corner.x, corner.y, size.x, size.y, 1.0, SEL_COLOR);
