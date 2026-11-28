@@ -36,6 +36,7 @@ cat << EOF
         text: String::new(),
         bounds: Rect::default(),
         parent: None,
+        src: None,
     };
     match ${!mode} {
         5 => {
@@ -63,6 +64,7 @@ cat << EOF
                 text: String::new(),
                 bounds: Rect::default(),
                 parent: None,
+                src: None,
             });
         }
         6 => ${!nodes}.push(${v}circle(INITIAL_R, "black")),

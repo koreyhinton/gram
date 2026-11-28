@@ -41,6 +41,7 @@ cat << EOF
                 text: String::new(),
                 bounds: Rect::default(),
                 parent: None,
+                src: None,
             });
         }
     }

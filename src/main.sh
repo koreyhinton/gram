@@ -95,6 +95,17 @@ export ${v}esc_Pressed=esc_pressed
 export ${v}esc_Now=now
 export ${v}esc_WarnedAt=job.warned_at
 export ${v}esc_Drop=drop_edit
+# Ctrl-S saves the page, Ctrl-Shift-C copies it
+export ${v}dxml_Doc=\(\&page.doc\)
+export ${v}dxml_Xml=page_xml
+export ${v}save_Path=page.path.as_path\(\)
+export ${v}save_Xml=\&page_xml
+export ${v}save_Error=save_error
+export ${v}ready_Pending=copy_pending.is_some\(\)
+export ${v}ready_Ctrl=ctrl
+export ${v}ready_C=is_key_down\(KeyCode::C\)
+export ${v}ready_X=is_key_down\(KeyCode::X\)
+export ${v}ready_Ready=copy_ready
 # arrow keys: move the selection
 export ${v}arrows_Events=key_events.events
 export ${v}arrows_Delta=arrow_delta
@@ -139,6 +150,7 @@ export ${v}hints_Doc=page.doc
 export ${v}hints_Selection=page.selection
 export ${v}hints_Mode=ws.mode
 export ${v}hints_Undo=can_undo
+export ${v}hints_Dirty=page.dirty
 export ${v}hints_Editing=editing
 export ${v}hints_Hints=hints
 
@@ -235,6 +247,15 @@ cat << EOF
         // an edit Esc twice dropped: what it was (a node, or a page's file
         // name) and when, for the banner
         let mut dropped: Option<(EditKind, String, f64)> = None;
+        // what a save or a copy did, and when, for the banner
+        let mut news: Option<(String, f64)> = None;
+        // the system clipboard, opened on the first copy and kept open: on
+        // X11 the copied text is served from it for as long as gram runs
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut clipboard: Option<arboard::Clipboard> = None;
+        // a copy waiting for the Ctrl chord to be let go (copy-ready.sh):
+        // the text, and the page's file name for the banner
+        let mut copy_pending: Option<(String, String)> = None;
         // a text just placed in text mode: open it in the editor next frame,
         // as Enter would
         let mut edit_new_text = false;
@@ -475,8 +496,57 @@ cat << EOF
                     Some(CtrlAction::SelectAll) => {
                         ` ./select-all.sh ${v}all_ `
                     }
+                    Some(CtrlAction::Save) => {
+                        ` ./doc-xml.sh ${v}dxml_ `
+                        ` ./page-save.sh ${v}save_ `
+
+                        let name = page.path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default();
+                        match save_error {
+                            None => {
+                                page.saved = page.doc.clone();
+                                page.dirty = false;
+                                news = Some((format!("saved {}", name), get_time()));
+                            }
+                            Some(err) => news = Some((err, get_time())),
+                        }
+                    }
+                    Some(CtrlAction::CopyPage) => {
+                        ` ./doc-xml.sh ${v}dxml_ `
+
+                        let name = page.path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default();
+                        copy_pending = Some((page_xml, name));
+                    }
                     None => {}
                 }
+            }
+
+            // a page copy goes to the clipboard once the Ctrl chord is let go
+            // (macroquad overwrites the clipboard while it is held)
+            ` ./copy-ready.sh ${v}ready_ `
+
+            if copy_ready && let Some((text, name)) = copy_pending.take() {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let copied: Result<(), String> = {
+                        if clipboard.is_none() {
+                            clipboard = arboard::Clipboard::new().ok();
+                        }
+                        match clipboard.as_mut() {
+                            Some(board) => board.set_text(text).map_err(|err| err.to_string()),
+                            None => Err("no system clipboard".to_string()),
+                        }
+                    };
+                    #[cfg(target_arch = "wasm32")]
+                    let copied: Result<(), String> = {
+                        macroquad::miniquad::window::clipboard_set(&text);
+                        Ok(())
+                    };
+                    news = Some((
+                        match copied {
+                            Ok(()) => format!("copied {} to the clipboard", name),
+                            Err(err) => format!("couldn't copy {}: {}", name, err),
+                        },
+                        get_time(),
+                    ));
             }
 
             // the arrow keys move the selection, a held key repeating; a run
@@ -807,6 +877,11 @@ cat << EOF
                 ` ./transform-note.sh ${v}note_ `
 
                 message = note.unwrap_or_default();
+            }
+            if let Some((what, at)) = news.as_ref()
+                && get_time() - at < DROPPED_NOTE_SECS
+            {
+                message = what.clone();
             }
             if let Some((kind, what, at)) = dropped.as_ref()
                 && get_time() - at < DROPPED_NOTE_SECS

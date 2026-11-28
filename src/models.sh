@@ -214,6 +214,25 @@ struct Node {
     text: String,
     bounds: Rect,
     parent: Option<usize>,
+    // where it came from in its file (svg-load.sh); None for a node gram
+    // made. A save writes a node that hasn't changed back as it was.
+    src: Option<NodeSource>,
+}
+
+// a node as its file had it (svg-load.sh), for writing it back exactly
+// (doc-xml.sh): the raw text before its start tag (whitespace, comments),
+// its start tag as written, and the tag, attributes and text it held then.
+// empty is <a/>; otherwise end is the raw text from its last child or its
+// text up to and including its end tag.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct NodeSource {
+    lead: String,
+    start: String,
+    tag: String,
+    attrs: Vec<(String, String)>,
+    text: String,
+    empty: bool,
+    end: String,
 }
 
 // the selected nodes, by index in Doc.nodes, in the order they were picked.
@@ -244,6 +263,10 @@ enum CtrlAction {
     Undo,
     Redo,
     SelectAll,
+    // Ctrl-S: write the page to its file
+    Save,
+    // Ctrl-Shift-C: the whole page's SVG to the clipboard
+    CopyPage,
 }
 
 // what a node edit's file says this frame (node-edit-check.sh)
@@ -302,6 +325,11 @@ struct EditJob {
 struct Doc {
     root_attrs: Vec<(String, String)>,
     nodes: Vec<Node>,
+    // the file's raw text up to and including the root's start tag (the
+    // prolog, comments, <svg ...>), and from the root's end tag to the end
+    // of the file: a save writes them back as they were (doc-xml.sh)
+    head: String,
+    tail: String,
 }
 
 // the view onto the infinite canvas: offset is the world point at the

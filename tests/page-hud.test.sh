@@ -33,6 +33,7 @@ export ${v}hints_Doc=doc
 export ${v}hints_Selection=selection
 export ${v}hints_Mode=mode
 export ${v}hints_Undo=can_undo
+export ${v}hints_Dirty=false
 export ${v}hints_Editing=editing
 export ${v}sel_Selection=selection
 export ${v}sel_Hit=hit
@@ -209,6 +210,8 @@ fn the_hints_say_how_to_edit_once_something_is_selected() {
     let editing = false;
     let doc = Doc {
         root_attrs: vec![],
+        head: String::new(),
+        tail: String::new(),
         nodes: ["circle", "rect"]
             .iter()
             .map(|tag| Node {
@@ -217,6 +220,7 @@ fn the_hints_say_how_to_edit_once_something_is_selected() {
                 text: String::new(),
                 bounds: Rect::default(),
                 parent: None,
+                src: None,
             })
             .collect(),
     };
@@ -265,7 +269,7 @@ fn the_hints_say_how_to_draw_in_arrow_and_rect_mode() {
 
 #[test]
 fn while_an_edit_is_open_the_hints_say_how_to_finish_or_drop_it() {
-    let doc = Doc { root_attrs: vec![], nodes: vec![] };
+    let doc = Doc::default();
     let selection = Selection::default();
     let mode = 0u8;
     // undo is locked while editing, so the hint leaves it out
@@ -283,6 +287,8 @@ fn while_an_edit_is_open_the_hints_say_how_to_finish_or_drop_it() {
 fn tdd_06_deselecting_the_last_node_returns_the_hints() {
     let doc = Doc {
         root_attrs: vec![],
+        head: String::new(),
+        tail: String::new(),
         nodes: ["circle", "polyline"]
             .iter()
             .map(|tag| Node {
@@ -291,6 +297,7 @@ fn tdd_06_deselecting_the_last_node_returns_the_hints() {
                 text: String::new(),
                 bounds: Rect::default(),
                 parent: None,
+                src: None,
             })
             .collect(),
     };

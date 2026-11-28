@@ -67,6 +67,7 @@ export ${v}hints_Doc=doc
 export ${v}hints_Selection=selection
 export ${v}hints_Mode=mode
 export ${v}hints_Undo=can_undo
+export ${v}hints_Dirty=false
 export ${v}hints_Editing=editing
 export ${v}hints_Hints=hints
 

@@ -5,3 +5,6 @@ src/main.rs
 tests/*.rs
 *~
 src/main.rs.tmp
+# Emacs autosave and lock files (act.svg@56bb48b)
+\#*\#
+.\#*
