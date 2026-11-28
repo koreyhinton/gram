@@ -47,7 +47,8 @@ mutant() { MT_KINDS+=("$1"); MT_NAMES+=("$2"); MT_FILES+=("$3"); MT_SEDS+=("$4")
 for snippet in svg-load spatial-index canvas-update canvas-fit draw-grid draw-page \
     draw-doc draw-hud workspace-args tree-scan tree-click tree-draw page-error \
     editor-pick editor-open editor-poll file-watch mouse-rects hit-test select node-xml \
-    node-apply map banner mode-notice hud-hints key-presses select-group transform-note; do
+    node-apply map banner mode-notice hud-hints key-presses select-group transform-note \
+    add-line; do
     mutant missing "${snippet}.sh not written" "src/${snippet}.sh" '/^cat << EOF$/,/^EOF$/d'
 done
 
@@ -243,7 +244,7 @@ mutant bug "text pairs carry the stroke change" src/map.sh \
 mutant bug "the mode notice never goes away" src/mode-notice.sh \
     's/    if \${!since} < MODE_NOTICE_SECS {/    if true {/'
 mutant bug "every mode says Select Mode" src/mode-notice.sh \
-    's/        let text = if \${!mode} == 0 {/        let text = if true {/'
+    's/        let text = match \${!mode} {/        let text = match 0u8 {/'
 
 # ---- the status line's hints ----
 mutant bug "the hints name the first selected, not the one being edited" src/hud-hints.sh \
@@ -258,6 +259,27 @@ mutant bug "holding a key repeats its press" src/key-presses.sh \
     's/if !repeat || after_lost_release {/if true {/'
 mutant bug "a lost key stays lost" src/key-presses.sh \
     '/^                \${!lost}\.retain(|held| \*held != key);$/d'
+
+# ---- the old app's TDD tests (devbox@ed1a227) ----
+# TDDTEST0 FIX: the old smartMap moved a rect's label through points, which
+# a text doesn't have, so the label stayed put
+mutant bug "a rect's edit moves its label through points" src/map.sh \
+    's/let is_polyline = dest\.tag == "polyline";/let is_polyline = dest.tag == "polyline" || (dest.tag == "text" \&\& ${!after}.tag == "rect");/'
+# TDDTEST1 FIX: the old 12 px a character made a label's box reach past its
+# text, so a click beside it took the label, not its box
+mutant bug "a label's box is 12 px a character" src/mouse-rects.sh \
+    's/                max_x = x\.trunc() + width;/                max_x = x.trunc() + 12.0 * ${v}node.text.chars().count() as f32;/'
+# TDDTEST2 FTR (line mode) is the missing add-line.sh above
+mutant bug "a line's ends aren't rounded" src/add-line.sh \
+    's/let \${v}at = \${!pos}\.round() + Vec2::ZERO;/let ${v}at = ${!pos} + Vec2::ZERO;/'
+mutant bug "a line's first click stays after it's drawn" src/add-line.sh \
+    's/    match \${!from}\.take() {/    match ${!from} {/'
+mutant bug "a drawn line goes inside the first node" src/add-line.sh \
+    's/                parent: None,/                parent: Some(0),/'
+mutant bug "line mode says Coming Soon" src/mode-notice.sh \
+    '/            1 => "1 => Line Mode"\.to_string(),/d'
+mutant bug "line mode's hints say how to select" src/hud-hints.sh \
+    's/        _ if \${!mode} == 1 => {/        _ if false => {/'
 
 # ---- <g> groups ----
 mutant bug "a right-click doesn't go up from the selected group" src/select-group.sh \

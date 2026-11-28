@@ -62,6 +62,10 @@ export ${v}sel_Hit=hit
 export ${v}group_Doc=page.doc
 export ${v}group_Hit=hit
 export ${v}group_Selection=page.selection
+# a click in line mode
+export ${v}line_Pos=world
+export ${v}line_From=page.line_from
+export ${v}line_Nodes=page.doc.nodes
 export ${v}note_Doc=ws.pages[i].doc
 export ${v}note_Note=note
 
@@ -82,6 +86,7 @@ export ${v}hud_Title=title
 export ${v}hud_Hints=hints
 export ${v}hints_Doc=page.doc
 export ${v}hints_Selection=page.selection
+export ${v}hints_Mode=ws.mode
 export ${v}hints_Hints=hints
 
 export ${v}tree_Entries=ws.entries
@@ -229,6 +234,7 @@ cat << EOF
                             dirty: false,
                             fitted: false,
                             selection: Selection::default(),
+                            line_from: None,
                         });
                         ws.open = Some(ws.pages.len() - 1);
                     }
@@ -336,6 +342,7 @@ cat << EOF
                 }
                 if !editing && let Some(i) = ws.open {
                     ws.pages[i].selection = Selection::default();
+                    ws.pages[i].line_from = None;
                 }
             }
 
@@ -354,7 +361,8 @@ cat << EOF
                 lost_releases = get_keys_down().into_iter().collect();
             }
 
-            // 0-9: the mode (only 0, select, does anything yet)
+            // 0-9: the mode (0 selects, 1 draws lines; the others do
+            // nothing yet). A new mode drops a line's first click.
             let digits = [
                 KeyCode::Key0, KeyCode::Key1, KeyCode::Key2, KeyCode::Key3, KeyCode::Key4,
                 KeyCode::Key5, KeyCode::Key6, KeyCode::Key7, KeyCode::Key8, KeyCode::Key9,
@@ -363,6 +371,9 @@ cat << EOF
                 if !editing && is_key_pressed(*key) {
                     ws.mode = num as u8;
                     mode_picked_at = get_time();
+                    for page in ws.pages.iter_mut() {
+                        page.line_from = None;
+                    }
                 }
             }
 
@@ -474,8 +485,22 @@ cat << EOF
                     ` ./canvas-update.sh ${v}pan_ `
                 }
 
-                // a click selects or deselects the node under it
-                if canvas_click && page.error.is_none() {
+                // a click selects or deselects the node under it; in line
+                // mode, it starts or ends a line
+                if canvas_click && page.error.is_none() && ws.mode == 1 {
+                    let world = page.canvas.offset + mouse / page.canvas.zoom;
+                    let count = page.doc.nodes.len();
+
+                    ` ./add-line.sh ${v}line_ `
+
+                    if page.doc.nodes.len() > count {
+                        ` ./mouse-rects.sh ${v}prects_ `
+                        ` ./spatial-index.sh ${v}pindex_ `
+
+                        page.index = index;
+                        page.dirty = true;
+                    }
+                } else if canvas_click && page.error.is_none() {
                     let world = page.canvas.offset + mouse / page.canvas.zoom;
 
                     ` ./hit-test.sh ${v}hit_ `
@@ -501,6 +526,12 @@ cat << EOF
                 if page.error.is_none() {
                     ` ./draw-page.sh ${v}page_ `
                     ` ./draw-doc.sh ${v}draw_ `
+                }
+                // line mode: the line so far, from its first click to the mouse
+                if ws.mode == 1 && let Some(from) = page.line_from {
+                    let to = page.canvas.offset + mouse / page.canvas.zoom;
+                    draw_line(from.x, from.y, to.x, to.y, 1.0, SEL_COLOR);
+                    draw_circle(from.x, from.y, 3.0 / page.canvas.zoom, SEL_COLOR);
                 }
 
                 // screen space

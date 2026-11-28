@@ -5,7 +5,7 @@
 # with key 1 down, a click starts a line and the next click ends it.
 #
 # The interface these tests fix:
-#   draw-line.sh  binds Nodes, Pos and From. Pos is the click in world
+#   add-line.sh  binds Nodes, Pos and From. Pos is the click in world
 #       units; From (Option<Vec2>, declared by the caller) is the first
 #       click, still waiting for its end. A first click sets From; the
 #       second appends <line x1 y1 x2 y2 stroke="black" stroke-width="1"/>
@@ -70,14 +70,14 @@ fn tdd_02_line_mode_two_clicks_create_a_line() {
 
     // the first click only starts the line
     let pos = vec2(25.0, 25.0);
-    ` ./draw-line.sh ${v}line_ `
+    ` ./add-line.sh ${v}line_ `
     assert_eq!(from, Some(vec2(25.0, 25.0)));
     assert_eq!(doc.nodes.len(), 5);
 
     // the second ends it
     let y_expect = 519.0;
     let pos = vec2(25.0, y_expect);
-    ` ./draw-line.sh ${v}line_ `
+    ` ./add-line.sh ${v}line_ `
     assert_eq!(from, None);
     assert_eq!(doc.nodes.len(), 6);
     let id = 5;
@@ -92,7 +92,7 @@ fn a_drawn_line_can_be_clicked() {
     let mut from: Option<Vec2> = None;
     for click in [(25.0, 25.0), (25.0, 519.0)] {
         let pos = vec2(click.0, click.1);
-        ` ./draw-line.sh ${v}line_ `
+        ` ./add-line.sh ${v}line_ `
     }
     ` ./mouse-rects.sh ${v}rects_ `
     ` ./spatial-index.sh ${v}index_ `
@@ -112,7 +112,7 @@ fn a_line_ends_on_whole_numbers() {
     let mut from: Option<Vec2> = None;
     for click in [(10.4, 20.6), (30.5, 40.49)] {
         let pos = vec2(click.0, click.1);
-        ` ./draw-line.sh ${v}line_ `
+        ` ./add-line.sh ${v}line_ `
     }
     let id = 0;
     ` ./node-xml.sh ${v}xml_ `
@@ -126,7 +126,7 @@ fn each_pair_of_clicks_draws_its_own_line() {
     let mut from: Option<Vec2> = None;
     for click in [(0.0, 0.0), (10.0, 0.0), (20.0, 5.0), (20.0, 15.0)] {
         let pos = vec2(click.0, click.1);
-        ` ./draw-line.sh ${v}line_ `
+        ` ./add-line.sh ${v}line_ `
     }
     assert_eq!(doc.nodes.len(), 2);
     assert_eq!(from, None);

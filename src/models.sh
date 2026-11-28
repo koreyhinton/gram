@@ -250,6 +250,8 @@ struct Page {
     // fitted to the window once it had its real size
     fitted: bool,
     selection: Selection,
+    // line mode's first click (world units), waiting for the line's end
+    line_from: Option<Vec2>,
 }
 
 // the folder gram opened: its tree, which folders are folded, how far the
@@ -261,7 +263,8 @@ struct Workspace {
     scroll: f32,
     pages: Vec<Page>,
     open: Option<usize>,
-    // the draw mode, keys 0-9 (0 is select; the others come with later steps)
+    // the draw mode, keys 0-9 (0 is select, 1 is line; the others come with
+    // later steps)
     mode: u8,
     // the editor gram started, if one is open
     edit: Option<EditJob>,
